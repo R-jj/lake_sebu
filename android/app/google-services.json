@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "206011392773",
+    "project_id": "lakesebu-dcd8c",
+    "storage_bucket": "lakesebu-dcd8c.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:206011392773:android:78d4a5dc0a7928a1660d6c",
+        "android_client_info": {
+          "package_name": "com.example.lake_sebu"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCAOF8e2qDIx9ViA0pgq9DjplY_SmGiDXA"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
