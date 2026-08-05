@@ -10,6 +10,8 @@ class HomePage extends StatefulWidget {
   final VoidCallback onOpenCart;
   final void Function(String id) onViewItem;
   final VoidCallback onSearchTap;
+  final VoidCallback onOpenAddress;
+  final String deliveryAddress;
 
   const HomePage({
     super.key,
@@ -18,6 +20,8 @@ class HomePage extends StatefulWidget {
     required this.onOpenCart,
     required this.onViewItem,
     required this.onSearchTap,
+    required this.onOpenAddress,
+    required this.deliveryAddress,
   });
 
   @override
@@ -31,26 +35,35 @@ class _HomePageState extends State<HomePage> {
   Widget build(BuildContext context) {
     final menuProvider = context.watch<MenuProvider>();
 
-    return SingleChildScrollView(
-      physics: const BouncingScrollPhysics(),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const SizedBox(height: 4),
-          _buildHeader(),
-          const SizedBox(height: 14),
-          _buildSearchBar(),
-          const SizedBox(height: 16),
-          _buildHeroBanner(),
-          const SizedBox(height: 20),
-          _buildCategories(),
-          const SizedBox(height: 20),
-          _buildFeatured(menuProvider),
-          const SizedBox(height: 20),
-          _buildNearby(menuProvider),
-          const SizedBox(height: 24),
-        ],
-      ),
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // ── Pinned header (address + cart) ──────────────────────────────────
+        const SizedBox(height: 4),
+        _buildHeader(),
+        const SizedBox(height: 14),
+        // ── Scrollable body ─────────────────────────────────────────────────
+        Expanded(
+          child: SingleChildScrollView(
+            physics: const BouncingScrollPhysics(),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                _buildSearchBar(),
+                const SizedBox(height: 16),
+                _buildHeroBanner(),
+                const SizedBox(height: 20),
+                _buildCategories(),
+                const SizedBox(height: 20),
+                _buildFeatured(menuProvider),
+                const SizedBox(height: 20),
+                _buildNearby(menuProvider),
+                const SizedBox(height: 24),
+              ],
+            ),
+          ),
+        ),
+      ],
     );
   }
 
@@ -60,30 +73,33 @@ class _HomePageState extends State<HomePage> {
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: const [
-              Row(
-                children: [
-                  Icon(Icons.location_on, size: 13, color: kMuted),
-                  SizedBox(width: 4),
-                  Text(
-                    'Delivering to',
-                    style: TextStyle(color: kMuted, fontSize: 12, fontWeight: FontWeight.w500),
-                  ),
-                ],
-              ),
-              SizedBox(height: 2),
-              Row(
-                children: [
-                  Text(
-                    '123 Main Street ',
-                    style: TextStyle(color: kInk, fontSize: 15, fontWeight: FontWeight.w700),
-                  ),
-                  Icon(Icons.keyboard_arrow_down, size: 18, color: kBrand),
-                ],
-              ),
-            ],
+          GestureDetector(
+            onTap: widget.onOpenAddress,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Row(
+                  children: [
+                    Icon(Icons.location_on, size: 13, color: kMuted),
+                    SizedBox(width: 4),
+                    Text(
+                      'Delivering to',
+                      style: TextStyle(color: kMuted, fontSize: 12, fontWeight: FontWeight.w500),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 2),
+                Row(
+                  children: [
+                    Text(
+                      '${widget.deliveryAddress} ',
+                      style: const TextStyle(color: kInk, fontSize: 15, fontWeight: FontWeight.w700),
+                    ),
+                    const Icon(Icons.keyboard_arrow_down, size: 18, color: kBrand),
+                  ],
+                ),
+              ],
+            ),
           ),
           GestureDetector(
             onTap: widget.onOpenCart,

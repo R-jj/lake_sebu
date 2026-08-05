@@ -7,8 +7,17 @@ class CartPage extends StatefulWidget {
   final List<CartItem> items;
   final void Function(String id, int qty) onUpdate;
   final void Function(String page) onNav;
+  final String deliveryAddress;
+  final VoidCallback onChangeAddress;
 
-  const CartPage({super.key, required this.items, required this.onUpdate, required this.onNav});
+  const CartPage({
+    super.key,
+    required this.items,
+    required this.onUpdate,
+    required this.onNav,
+    required this.deliveryAddress,
+    required this.onChangeAddress,
+  });
 
   @override
   State<CartPage> createState() => _CartPageState();
@@ -238,11 +247,22 @@ class _CartPageState extends State<CartPage> {
                             children: [
                               const Text('Delivering to', style: TextStyle(color: kMuted, fontSize: 11)),
                               const SizedBox(height: 1),
-                              Text('123 Main Street', style: const TextStyle(color: kInk, fontWeight: FontWeight.w700, fontSize: 14)),
+                              Text(widget.deliveryAddress,
+                                  style: const TextStyle(
+                                      color: kInk,
+                                      fontWeight: FontWeight.w700,
+                                      fontSize: 14)),
                             ],
                           ),
                         ),
-                        const Text('Change', style: TextStyle(color: kBrand, fontSize: 13, fontWeight: FontWeight.w600)),
+                        GestureDetector(
+                          onTap: widget.onChangeAddress,
+                          child: const Text('Change',
+                              style: TextStyle(
+                                  color: kBrand,
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w600)),
+                        ),
                       ],
                     ),
                   ),
