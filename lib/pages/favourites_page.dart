@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../constants.dart';
 import '../providers/menu_providers.dart';
+import '../widgets/app_image.dart';
 import '_sub_page_shell.dart';
 
 class FavouritesPage extends StatefulWidget {
@@ -107,10 +108,10 @@ class _FavTile extends StatelessWidget {
             child: SizedBox(
               width: 90,
               height: 110,
-              child: Image.network(
-                img,
-                fit: BoxFit.cover,
-                errorBuilder: (context, error, stack) => Container(color: kSurface2),
+              child: AppImage.thumb(
+                url: img,
+                width: 90,
+                height: 110,
               ),
             ),
           ),

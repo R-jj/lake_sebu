@@ -2,6 +2,9 @@ import 'package:flutter/material.dart';
 import '../constants.dart';
 import 'package:provider/provider.dart';
 import '../providers/menu_providers.dart';
+import '../widgets/app_image.dart';
+
+const _kPageSize = 10;
 
 class SearchPage extends StatefulWidget {
   final void Function(String id) onViewItem;
@@ -14,41 +17,78 @@ class SearchPage extends StatefulWidget {
 
 class _SearchPageState extends State<SearchPage> {
   final TextEditingController _controller = TextEditingController();
+  final ScrollController _scrollCtrl = ScrollController();
+
   String _query = '';
+
+  /// How many items are currently visible in the active list
+  /// (trending when query is empty, results when query is set).
+  int _visibleCount = _kPageSize;
+
+  @override
+  void initState() {
+    super.initState();
+    _scrollCtrl.addListener(_onScroll);
+  }
 
   @override
   void dispose() {
     _controller.dispose();
+    _scrollCtrl.dispose();
     super.dispose();
+  }
+
+  // ── Helpers ────────────────────────────────────────────────────────────────
+
+  void _onScroll() {
+    if (_scrollCtrl.position.pixels >=
+        _scrollCtrl.position.maxScrollExtent - 200) {
+      _loadMore();
+    }
+  }
+
+  void _loadMore() {
+    final provider = context.read<MenuProvider>();
+    final total = _query.trim().isEmpty
+        ? provider.allItems.length
+        : _buildResults(provider.allItems, _query.trim()).length;
+    if (_visibleCount < total) {
+      setState(
+          () => _visibleCount = (_visibleCount + _kPageSize).clamp(0, total));
+    }
   }
 
   void _setQuery(String value) {
     setState(() {
       _query = value;
       _controller.text = value;
-      _controller.selection = TextSelection.collapsed(offset: value.length);
+      _controller.selection =
+          TextSelection.collapsed(offset: value.length);
+      _visibleCount = _kPageSize; // reset page on every query change
     });
   }
+
+  List<Map<String, dynamic>> _buildResults(
+      List<Map<String, dynamic>> all, String trimmed) {
+    final q = trimmed.toLowerCase();
+    return all.where((item) {
+      final name = (item['name'] as String? ?? '').toLowerCase();
+      final restaurant =
+          (item['restaurantName'] as String? ?? '').toLowerCase();
+      final category = (item['category'] as String? ?? '').toLowerCase();
+      return name.contains(q) ||
+          restaurant.contains(q) ||
+          category.contains(q);
+    }).toList();
+  }
+
+  // ── Build ──────────────────────────────────────────────────────────────────
 
   @override
   Widget build(BuildContext context) {
     final menuProvider = context.watch<MenuProvider>();
     final allItems = menuProvider.allItems;
     final trimmed = _query.trim();
-
-    List<Map<String, dynamic>> results = [];
-    if (trimmed.isNotEmpty) {
-      final q = trimmed.toLowerCase();
-      results = allItems.where((item) {
-        // Safely extract strings with fallbacks
-        final name = (item['name'] as String? ?? '').toLowerCase();
-        final restaurant = (item['restaurantName'] as String? ?? '').toLowerCase();
-        final category = (item['category'] as String? ?? '').toLowerCase();
-
-        // Return true if the query matches the name, restaurant, OR category
-        return name.contains(q) || restaurant.contains(q) || category.contains(q);
-      }).toList();
-    }
 
     if (menuProvider.isLoading) {
       return const Center(child: CircularProgressIndicator());
@@ -60,10 +100,12 @@ class _SearchPageState extends State<SearchPage> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text('Find your next meal',
-              style: kSerif.copyWith(color: kInk, fontSize: 20, fontWeight: FontWeight.w900)),
+              style: kSerif.copyWith(
+                  color: kInk, fontSize: 20, fontWeight: FontWeight.w900)),
           const SizedBox(height: 16),
           Container(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+            padding:
+                const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
             decoration: BoxDecoration(
               color: kSurface,
               border: Border.all(color: kBorder),
@@ -76,12 +118,13 @@ class _SearchPageState extends State<SearchPage> {
                 Expanded(
                   child: TextField(
                     controller: _controller,
-                    onChanged: (v) => setState(() => _query = v),
+                    onChanged: _setQuery,
                     style: const TextStyle(color: kInk, fontSize: 14),
                     cursorColor: kBrand,
                     decoration: const InputDecoration(
                       hintText: 'Dishes, restaurants, cuisines...',
-                      hintStyle: TextStyle(color: kMuted, fontSize: 14),
+                      hintStyle:
+                          TextStyle(color: kMuted, fontSize: 14),
                       border: InputBorder.none,
                       isDense: true,
                     ),
@@ -92,7 +135,9 @@ class _SearchPageState extends State<SearchPage> {
                     onTap: () => _setQuery(''),
                     child: const Padding(
                       padding: EdgeInsets.only(left: 4),
-                      child: Text('×', style: TextStyle(color: kMuted, fontSize: 20)),
+                      child: Text('×',
+                          style:
+                              TextStyle(color: kMuted, fontSize: 20)),
                     ),
                   ),
               ],
@@ -102,24 +147,33 @@ class _SearchPageState extends State<SearchPage> {
       ),
     );
 
-    // No query yet — popular searches + trending
+    // ── No query: trending list ──────────────────────────────────────────────
     if (trimmed.isEmpty) {
+      final visible = allItems.take(_visibleCount).toList();
+      final hasMore = _visibleCount < allItems.length;
+
       return Column(
         children: [
           header,
           Expanded(
-            child: SingleChildScrollView(
+            child: ListView.builder(
+              controller: _scrollCtrl,
               physics: const BouncingScrollPhysics(),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Padding(
+              itemCount: _trendingHeaderCount + visible.length + (hasMore ? 1 : 0),
+              itemBuilder: (context, i) {
+                // ── Static header section ────────────────────────────────
+                if (i == 0) {
+                  return Padding(
                     padding: const EdgeInsets.fromLTRB(20, 20, 20, 0),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         const Text('POPULAR SEARCHES',
-                            style: TextStyle(color: kMuted, fontSize: 12, fontWeight: FontWeight.w700, letterSpacing: 1)),
+                            style: TextStyle(
+                                color: kMuted,
+                                fontSize: 12,
+                                fontWeight: FontWeight.w700,
+                                letterSpacing: 1)),
                         const SizedBox(height: 14),
                         Wrap(
                           spacing: 10,
@@ -129,57 +183,79 @@ class _SearchPageState extends State<SearchPage> {
                             return GestureDetector(
                               onTap: () => _setQuery(label),
                               child: Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                                padding: const EdgeInsets.symmetric(
+                                    horizontal: 16, vertical: 8),
                                 decoration: BoxDecoration(
                                   color: kSurface,
                                   border: Border.all(color: kBorder),
-                                  borderRadius: BorderRadius.circular(100),
+                                  borderRadius:
+                                      BorderRadius.circular(100),
                                 ),
                                 child: Row(
                                   mainAxisSize: MainAxisSize.min,
                                   children: [
-                                    Icon(s['icon'] as IconData, size: 16, color: kInk),
+                                    Icon(s['icon'] as IconData,
+                                        size: 16, color: kInk),
                                     const SizedBox(width: 6),
-                                    Text(label, style: const TextStyle(color: kInk, fontSize: 13, fontWeight: FontWeight.w600)),
+                                    Text(label,
+                                        style: const TextStyle(
+                                            color: kInk,
+                                            fontSize: 13,
+                                            fontWeight:
+                                                FontWeight.w600)),
                                   ],
                                 ),
                               ),
                             );
                           }).toList(),
                         ),
-                      ],
-                    ),
-                  ),
-                  Padding(
-                    padding: const EdgeInsets.fromLTRB(20, 24, 20, 28),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
+                        const SizedBox(height: 24),
                         const Row(
                           children: [
                             Text('TRENDING NOW',
-                                style: TextStyle(color: kMuted, fontSize: 12, fontWeight: FontWeight.w700, letterSpacing: 1)),
+                                style: TextStyle(
+                                    color: kMuted,
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w700,
+                                    letterSpacing: 1)),
                             SizedBox(width: 6),
-                            Icon(Icons.local_fire_department, size: 14, color: kGold),
+                            Icon(Icons.local_fire_department,
+                                size: 14, color: kGold),
                           ],
                         ),
                         const SizedBox(height: 14),
-                        ...allItems.map((item) => Padding(
-                              padding: const EdgeInsets.only(bottom: 12),
-                              child: _ResultRow(item: item, onTap: () => widget.onViewItem('${item['id']}')),
-                            )),
                       ],
                     ),
-                  ),
-                ],
-              ),
+                  );
+                }
+
+                // ── Spinner footer ───────────────────────────────────────
+                if (hasMore && i == _trendingHeaderCount + visible.length) {
+                  return const Padding(
+                    padding: EdgeInsets.symmetric(vertical: 20),
+                    child: Center(child: CircularProgressIndicator()),
+                  );
+                }
+
+                // ── Item rows ────────────────────────────────────────────
+                final item = visible[i - _trendingHeaderCount];
+                return Padding(
+                  padding: const EdgeInsets.fromLTRB(20, 0, 20, 12),
+                  child: _ResultRow(
+                      item: item,
+                      onTap: () =>
+                          widget.onViewItem('${item['id']}')),
+                );
+              },
             ),
           ),
         ],
       );
     }
 
-    // No matches — centered empty state
+    // ── Results: no matches ──────────────────────────────────────────────────
+    final results = _buildResults(allItems, trimmed);
+
     if (results.isEmpty) {
       return Column(
         children: [
@@ -193,12 +269,23 @@ class _SearchPageState extends State<SearchPage> {
                   children: [
                     const Icon(Icons.restaurant, size: 44, color: kMuted),
                     const SizedBox(height: 12),
-                    const Text('Nothing found', style: TextStyle(color: kInk, fontSize: 15, fontWeight: FontWeight.w600)),
+                    const Text('Nothing found',
+                        style: TextStyle(
+                            color: kInk,
+                            fontSize: 15,
+                            fontWeight: FontWeight.w600)),
                     const SizedBox(height: 6),
-                    const Text('Try a different dish or restaurant name', style: TextStyle(color: kMuted, fontSize: 13)),
+                    const Text(
+                        'Try a different dish or restaurant name',
+                        style:
+                            TextStyle(color: kMuted, fontSize: 13)),
                     const SizedBox(height: 16),
                     Text('No results for "$trimmed"',
-                        style: const TextStyle(color: kMuted, fontSize: 12, fontWeight: FontWeight.w700, letterSpacing: 1),
+                        style: const TextStyle(
+                            color: kMuted,
+                            fontSize: 12,
+                            fontWeight: FontWeight.w700,
+                            letterSpacing: 1),
                         textAlign: TextAlign.center),
                   ],
                 ),
@@ -209,36 +296,60 @@ class _SearchPageState extends State<SearchPage> {
       );
     }
 
-    // Matches found
+    // ── Results: matches ─────────────────────────────────────────────────────
+    final visible = results.take(_visibleCount).toList();
+    final hasMore = _visibleCount < results.length;
+
     return Column(
       children: [
         header,
         Expanded(
-          child: SingleChildScrollView(
+          child: ListView.builder(
+            controller: _scrollCtrl,
             physics: const BouncingScrollPhysics(),
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(20, 20, 20, 28),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
+            itemCount: 1 + visible.length + (hasMore ? 1 : 0),
+            itemBuilder: (context, i) {
+              // Count label header
+              if (i == 0) {
+                return Padding(
+                  padding: const EdgeInsets.fromLTRB(20, 20, 20, 14),
+                  child: Text(
                     '${results.length} result${results.length != 1 ? 's' : ''} for "$trimmed"',
-                    style: const TextStyle(color: kMuted, fontSize: 12, fontWeight: FontWeight.w700, letterSpacing: 1),
+                    style: const TextStyle(
+                        color: kMuted,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w700,
+                        letterSpacing: 1),
                   ),
-                  const SizedBox(height: 14),
-                  ...results.map((item) => Padding(
-                        padding: const EdgeInsets.only(bottom: 12),
-                        child: _ResultRow(item: item, onTap: () => widget.onViewItem('${item['id']}')),
-                      )),
-                ],
-              ),
-            ),
+                );
+              }
+              // Spinner footer
+              if (hasMore && i == 1 + visible.length) {
+                return const Padding(
+                  padding: EdgeInsets.symmetric(vertical: 20),
+                  child: Center(child: CircularProgressIndicator()),
+                );
+              }
+              final item = visible[i - 1];
+              return Padding(
+                padding: const EdgeInsets.fromLTRB(20, 0, 20, 12),
+                child: _ResultRow(
+                    item: item,
+                    onTap: () =>
+                        widget.onViewItem('${item['id']}')),
+              );
+            },
           ),
         ),
       ],
     );
   }
 }
+
+// One static header item (popular searches + trending label)
+const int _trendingHeaderCount = 1;
+
+// ── Result row ────────────────────────────────────────────────────────────────
 
 class _ResultRow extends StatelessWidget {
   final Map<String, dynamic> item;
@@ -262,12 +373,14 @@ class _ResultRow extends StatelessWidget {
             Container(
               width: 56,
               height: 56,
-              decoration: BoxDecoration(color: kSurface2, borderRadius: BorderRadius.circular(12)),
+              decoration: BoxDecoration(
+                  color: kSurface2,
+                  borderRadius: BorderRadius.circular(12)),
               clipBehavior: Clip.hardEdge,
-              child: Image.network(
-                item['img'] as String,
-                fit: BoxFit.cover,
-                errorBuilder: (context, error, stack) => Container(color: kSurface2),
+              child: AppImage.thumb(
+                url: item['img'] as String? ?? '',
+                width: 56,
+                height: 56,
               ),
             ),
             const SizedBox(width: 14),
@@ -275,10 +388,15 @@ class _ResultRow extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(item['name'] as String, style: const TextStyle(color: kInk, fontWeight: FontWeight.w700, fontSize: 14)),
+                  Text(item['name'] as String? ?? '',
+                      style: const TextStyle(
+                          color: kInk,
+                          fontWeight: FontWeight.w700,
+                          fontSize: 14)),
                   Text(
-                    '${item['restaurantName']} · ${item['category'] ?? 'Food'}',
-                    style: const TextStyle(color: kMuted, fontSize: 12),
+                    '${item['restaurantName'] ?? item['restaurant'] ?? ''} · ${item['category'] ?? 'Food'}',
+                    style:
+                        const TextStyle(color: kMuted, fontSize: 12),
                   ),
                 ],
               ),
@@ -287,13 +405,16 @@ class _ResultRow extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.end,
               children: [
                 Text(formatPeso(item['price'] as num?),
-                    style: const TextStyle(color: kInk, fontWeight: FontWeight.w800)),
+                    style: const TextStyle(
+                        color: kInk, fontWeight: FontWeight.w800)),
                 Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     const Icon(Icons.star, size: 13, color: kGold),
                     const SizedBox(width: 2),
-                    Text('${item['rating']}', style: const TextStyle(color: kGold, fontSize: 12)),
+                    Text('${item['rating'] ?? '—'}',
+                        style: const TextStyle(
+                            color: kGold, fontSize: 12)),
                   ],
                 ),
               ],

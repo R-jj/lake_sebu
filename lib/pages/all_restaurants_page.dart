@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../constants.dart';
+import '../widgets/app_image.dart';
 import '_sub_page_shell.dart';
 
 // ── Static data ───────────────────────────────────────────────────────────────
@@ -293,10 +294,11 @@ class _RestaurantCard extends StatelessWidget {
                 SizedBox(
                   height: 130,
                   width: double.infinity,
-                  child: Image.network(
-                    data['img'] as String,
+                  child: AppImage(
+                    url: data['img'] as String? ?? '',
                     fit: BoxFit.cover,
-                    errorBuilder: (_, __, ___) => Container(color: kSurface2),
+                    height: 130,
+                    width: double.infinity,
                   ),
                 ),
                 // Badge

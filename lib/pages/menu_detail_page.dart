@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../constants.dart';
 import '../providers/menu_providers.dart';
+import '../widgets/app_image.dart';
 
 /// Full-screen menu item detail — sizes, add-ons, quantity, and related items.
 class MenuDetailPage extends StatefulWidget {
@@ -194,12 +195,11 @@ class _MenuDetailPageState extends State<MenuDetailPage> {
       child: Stack(
         fit: StackFit.expand,
         children: [
-          Image.network(
-            img,
+          AppImage.hero(
+            url: img,
             fit: BoxFit.cover,
-            loadingBuilder: (context, child, progress) =>
-                progress == null ? child : Container(color: kSurface2),
-            errorBuilder: (context, error, stack) => Container(color: kSurface2),
+            width: double.infinity,
+            height: 260,
           ),
           const DecoratedBox(
             decoration: BoxDecoration(

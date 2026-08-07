@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../constants.dart';
+import '../widgets/app_image.dart';
 
 class OrdersPage extends StatefulWidget {
   const OrdersPage({super.key});
@@ -204,10 +205,10 @@ class _OrdersPageState extends State<OrdersPage> {
                     height: 52,
                     decoration: BoxDecoration(color: kSurface2, borderRadius: BorderRadius.circular(12)),
                     clipBehavior: Clip.hardEdge,
-                    child: Image.network(
-                      order['img'] as String,
-                      fit: BoxFit.cover,
-                      errorBuilder: (context, error, stack) => Container(color: kSurface2),
+                    child: AppImage.thumb(
+                      url: order['img'] as String? ?? '',
+                      width: 52,
+                      height: 52,
                     ),
                   ),
                   const SizedBox(width: 12),

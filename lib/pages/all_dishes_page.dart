@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../constants.dart';
 import '../providers/menu_providers.dart';
+import '../widgets/app_image.dart';
 import '_sub_page_shell.dart';
 
 const _kSortOptions = [
@@ -28,17 +29,49 @@ class AllDishesPage extends StatefulWidget {
   State<AllDishesPage> createState() => _AllDishesPageState();
 }
 
+const _kPageSize = 15;
+
 class _AllDishesPageState extends State<AllDishesPage> {
   String _sort = 'Recommended';
   String _filter = 'All';
   final _searchCtrl = TextEditingController();
   String _search = '';
 
+  int _visibleCount = _kPageSize;
+  final _scrollCtrl = ScrollController();
+
+  @override
+  void initState() {
+    super.initState();
+    _scrollCtrl.addListener(_onScroll);
+  }
+
   @override
   void dispose() {
     _searchCtrl.dispose();
+    _scrollCtrl.dispose();
     super.dispose();
   }
+
+  void _onScroll() {
+    if (_scrollCtrl.position.pixels >=
+        _scrollCtrl.position.maxScrollExtent - 200) {
+      _loadMore();
+    }
+  }
+
+  void _loadMore() {
+    // Called during scroll — guard against unnecessary setState calls.
+    final provider = context.read<MenuProvider>();
+    final total = _applyFilters(provider.allItems).length;
+    if (_visibleCount < total) {
+      setState(() => _visibleCount =
+          (_visibleCount + _kPageSize).clamp(0, total));
+    }
+  }
+
+  /// Resets pagination whenever filters/sort/search change.
+  void _resetPage() => setState(() => _visibleCount = _kPageSize);
 
   List<Map<String, dynamic>> _applyFilters(List<Map<String, dynamic>> items) {
     var list = items.where((d) {
@@ -103,32 +136,30 @@ class _AllDishesPageState extends State<AllDishesPage> {
   @override
   Widget build(BuildContext context) {
     final provider = context.watch<MenuProvider>();
-    
-    // 1. Dynamically generate the list of unique categories
+
+    // Rebuild the dynamic category tabs.
     final Set<String> uniqueCategories = {};
     for (var item in provider.allItems) {
       final category = item['category'] as String?;
       if (category != null && category.trim().isNotEmpty) {
-        // You can also capitalize the first letter here if your data is messy
         uniqueCategories.add(category.trim());
       }
     }
-    
-    // Sort them alphabetically and put 'All' at the front
     final dynamicFilterTabs = ['All', ...uniqueCategories.toList()..sort()];
 
-    // 2. Apply filters
-    final items = _applyFilters(provider.allItems);
+    // Apply filters then page-slice.
+    final allFiltered = _applyFilters(provider.allItems);
+    final visibleItems = allFiltered.take(_visibleCount).toList();
+    final hasMore = _visibleCount < allFiltered.length;
 
     return SubPageShell(
       title: 'All dishes',
-      subtitle: '${items.length} item${items.length != 1 ? 's' : ''}',
+      subtitle: '${allFiltered.length} item${allFiltered.length != 1 ? 's' : ''}',
       onBack: widget.onBack,
       child: Column(
         children: [
           _buildSearchBar(),
           const SizedBox(height: 10),
-          // Pass the dynamic tabs to the widget
           _buildFilterTabs(dynamicFilterTabs),
           const SizedBox(height: 8),
           _buildSortRow(),
@@ -136,18 +167,27 @@ class _AllDishesPageState extends State<AllDishesPage> {
           Expanded(
             child: provider.isLoading
                 ? const Center(child: CircularProgressIndicator())
-                : items.isEmpty
+                : allFiltered.isEmpty
                     ? _buildEmpty()
                     : ListView.separated(
+                        controller: _scrollCtrl,
                         padding: const EdgeInsets.fromLTRB(20, 0, 20, 28),
                         physics: const BouncingScrollPhysics(),
-                        itemCount: items.length,
+                        itemCount: visibleItems.length + (hasMore ? 1 : 0),
                         separatorBuilder: (_, __) => const SizedBox(height: 12),
-                        itemBuilder: (context, i) => _DishTile(
-                          item: items[i],
-                          onViewItem: widget.onViewItem,
-                          onAddToCart: widget.onAddToCart,
-                        ),
+                        itemBuilder: (context, i) {
+                          if (i == visibleItems.length) {
+                            return const Padding(
+                              padding: EdgeInsets.symmetric(vertical: 20),
+                              child: Center(child: CircularProgressIndicator()),
+                            );
+                          }
+                          return _DishTile(
+                            item: visibleItems[i],
+                            onViewItem: widget.onViewItem,
+                            onAddToCart: widget.onAddToCart,
+                          );
+                        },
                       ),
           ),
         ],
@@ -172,7 +212,10 @@ class _AllDishesPageState extends State<AllDishesPage> {
             Expanded(
               child: TextField(
                 controller: _searchCtrl,
-                onChanged: (v) => setState(() => _search = v),
+                onChanged: (v) {
+                  setState(() => _search = v);
+                  _resetPage();
+                },
                 style: const TextStyle(color: kInk, fontSize: 14),
                 decoration: const InputDecoration(
                   hintText: 'Search dishes...',
@@ -188,6 +231,7 @@ class _AllDishesPageState extends State<AllDishesPage> {
                 onTap: () {
                   _searchCtrl.clear();
                   setState(() => _search = '');
+                  _resetPage();
                 },
                 child: const Icon(Icons.close, size: 16, color: kMuted),
               ),
@@ -210,7 +254,10 @@ class _AllDishesPageState extends State<AllDishesPage> {
           final tab = tabs[i]; // Use the passed-in list
           final active = _filter == tab;
           return GestureDetector(
-            onTap: () => setState(() => _filter = tab),
+            onTap: () {
+                _resetPage();
+                setState(() => _filter = tab);
+              },
             child: AnimatedContainer(
               duration: const Duration(milliseconds: 150),
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 7),
@@ -247,7 +294,10 @@ class _AllDishesPageState extends State<AllDishesPage> {
           final opt = _kSortOptions[i];
           final active = _sort == opt;
           return GestureDetector(
-            onTap: () => setState(() => _sort = opt),
+            onTap: () {
+                _resetPage();
+                setState(() => _sort = opt);
+              },
             child: AnimatedContainer(
               duration: const Duration(milliseconds: 150),
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
@@ -327,11 +377,10 @@ class _DishTile extends StatelessWidget {
                 SizedBox(
                   width: 100,
                   height: 110,
-                  child: Image.network(
-                    heroImg,
-                    fit: BoxFit.cover,
-                    errorBuilder: (_, __, ___) =>
-                        Container(color: kSurface2),
+                  child: AppImage.thumb(
+                    url: heroImg,
+                    width: 100,
+                    height: 110,
                   ),
                 ),
                 if (tag.isNotEmpty)

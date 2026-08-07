@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../constants.dart';
 import '../models/cart_item.dart';
+import '../widgets/app_image.dart';
 
 /// Cart page — line items, promo code, order summary, and checkout.
 class CartPage extends StatefulWidget {
@@ -423,10 +424,10 @@ class _CartRow extends StatelessWidget {
             height: 60,
             decoration: BoxDecoration(color: kSurface2, borderRadius: BorderRadius.circular(12)),
             clipBehavior: Clip.hardEdge,
-            child: Image.network(
-              item.img,
-              fit: BoxFit.cover,
-              errorBuilder: (context, error, stack) => Container(color: kSurface2),
+            child: AppImage.thumb(
+              url: item.img,
+              width: 60,
+              height: 60,
             ),
           ),
           const SizedBox(width: 14),

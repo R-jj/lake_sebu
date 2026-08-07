@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../constants.dart';
+import 'app_image.dart';
 
 // ── Shared: Featured Card ───────────────────────────────────────────────────
 
@@ -38,12 +39,9 @@ class FeaturedCard extends StatelessWidget {
             child: Stack(
               fit: StackFit.expand,
               children: [
-                Image.network(
-                  dish['img'] as String? ?? '', // Fallback for missing image
+                AppImage(
+                  url: dish['img'] as String? ?? '',
                   fit: BoxFit.cover,
-                  loadingBuilder: (context, child, progress) =>
-                      progress == null ? child : Container(color: kSurface2),
-                  errorBuilder: (context, error, stack) => Container(color: kSurface2),
                 ),
                 
                 // 2. Conditionally render the Tag UI ONLY if 'tag' is not null
