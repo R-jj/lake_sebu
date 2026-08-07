@@ -12,6 +12,9 @@ class HomePage extends StatefulWidget {
   final VoidCallback onSearchTap;
   final VoidCallback onOpenAddress;
   final String deliveryAddress;
+  final VoidCallback onSeeAllCategories;
+  final VoidCallback onSeeAllDishes;
+  final VoidCallback onSeeAllRestaurants;
 
   const HomePage({
     super.key,
@@ -22,6 +25,9 @@ class HomePage extends StatefulWidget {
     required this.onSearchTap,
     required this.onOpenAddress,
     required this.deliveryAddress,
+    required this.onSeeAllCategories,
+    required this.onSeeAllDishes,
+    required this.onSeeAllRestaurants,
   });
 
   @override
@@ -240,13 +246,16 @@ class _HomePageState extends State<HomePage> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Padding(
-          padding: EdgeInsets.symmetric(horizontal: 20),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 20),
           child: Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text('Categories', style: TextStyle(color: kInk, fontSize: 17, fontWeight: FontWeight.w800)),
-              Text('See all', style: TextStyle(color: kBrand, fontSize: 12, fontWeight: FontWeight.w600)),
+              const Text('Categories', style: TextStyle(color: kInk, fontSize: 17, fontWeight: FontWeight.w800)),
+              GestureDetector(
+                onTap: widget.onSeeAllCategories,
+                child: const Text('See all', style: TextStyle(color: kBrand, fontSize: 12, fontWeight: FontWeight.w600)),
+              ),
             ],
           ),
         ),
@@ -304,13 +313,16 @@ class _HomePageState extends State<HomePage> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Padding(
-          padding: EdgeInsets.symmetric(horizontal: 20),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 20),
           child: Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text('Featured', style: TextStyle(color: kInk, fontSize: 17, fontWeight: FontWeight.w800)),
-              Text('See all', style: TextStyle(color: kBrand, fontSize: 12, fontWeight: FontWeight.w600)),
+              const Text('Featured', style: TextStyle(color: kInk, fontSize: 17, fontWeight: FontWeight.w800)),
+              GestureDetector(
+                onTap: widget.onSeeAllDishes,
+                child: const Text('See all', style: TextStyle(color: kBrand, fontSize: 12, fontWeight: FontWeight.w600)),
+              ),
             ],
           ),
         ),
@@ -344,13 +356,16 @@ class _HomePageState extends State<HomePage> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Padding(
-          padding: EdgeInsets.symmetric(horizontal: 20),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 20),
           child: Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text('Nearby restaurants', style: TextStyle(color: kInk, fontSize: 17, fontWeight: FontWeight.w800)),
-              Text('View all', style: TextStyle(color: kBrand, fontSize: 12, fontWeight: FontWeight.w600)),
+              const Text('Nearby restaurants', style: TextStyle(color: kInk, fontSize: 17, fontWeight: FontWeight.w800)),
+              GestureDetector(
+                onTap: widget.onSeeAllRestaurants,
+                child: const Text('View all', style: TextStyle(color: kBrand, fontSize: 12, fontWeight: FontWeight.w600)),
+              ),
             ],
           ),
         ),

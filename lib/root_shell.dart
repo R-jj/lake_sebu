@@ -8,6 +8,9 @@ import 'pages/profile_page.dart';
 import 'pages/menu_detail_page.dart';
 import 'pages/cart_page.dart';
 import 'pages/address_page.dart';
+import 'pages/all_categories_page.dart';
+import 'pages/all_dishes_page.dart';
+import 'pages/all_restaurants_page.dart';
 
 class RootShell extends StatefulWidget {
   const RootShell({super.key});
@@ -21,6 +24,10 @@ class _RootShellState extends State<RootShell> {
   String _page = 'home';
   String? _viewingItemId;
   bool _showAddressPage = false;
+
+  // ── See-all overlays ─────────────────────────────────────────────────────────
+  // null | 'categories' | 'dishes' | 'restaurants'
+  String? _seeAllPage;
 
   // ── Delivery address ────────────────────────────────────────────────────────
   String _deliveryAddress = '123 Main Street';
@@ -47,6 +54,10 @@ class _RootShellState extends State<RootShell> {
   void _closeAddress() => setState(() => _showAddressPage = false);
 
   void _selectAddress(String addr) => setState(() => _deliveryAddress = addr);
+
+  void _openSeeAll(String page) => setState(() => _seeAllPage = page);
+
+  void _closeSeeAll() => setState(() => _seeAllPage = null);
 
   // ── Cart helpers ─────────────────────────────────────────────────────────────
 
@@ -106,6 +117,48 @@ class _RootShellState extends State<RootShell> {
       );
     }
 
+    // See-all overlays — full-screen, hide bottom nav.
+    if (_seeAllPage == 'categories') {
+      return Scaffold(
+        backgroundColor: kCanvas,
+        body: SafeArea(
+          child: AllCategoriesPage(
+            onBack: _closeSeeAll,
+            onSelectCategory: (_) => _closeSeeAll(),
+          ),
+        ),
+      );
+    }
+    if (_seeAllPage == 'dishes') {
+      return Scaffold(
+        backgroundColor: kCanvas,
+        body: SafeArea(
+          child: AllDishesPage(
+            onBack: _closeSeeAll,
+            onViewItem: (id) {
+              _closeSeeAll();
+              _openItem(id);
+            },
+            onAddToCart: _addToCart,
+          ),
+        ),
+      );
+    }
+    if (_seeAllPage == 'restaurants') {
+      return Scaffold(
+        backgroundColor: kCanvas,
+        body: SafeArea(
+          child: AllRestaurantsPage(
+            onBack: _closeSeeAll,
+            onViewItem: (id) {
+              _closeSeeAll();
+              _openItem(id);
+            },
+          ),
+        ),
+      );
+    }
+
     // Menu detail page — full-screen overlay, hides bottom nav.
     if (_viewingItemId != null) {
       return Scaffold(
@@ -135,6 +188,9 @@ class _RootShellState extends State<RootShell> {
               onSearchTap: () => _goTo('search'),
               onOpenAddress: _openAddress,
               deliveryAddress: _deliveryAddress,
+              onSeeAllCategories: () => _openSeeAll('categories'),
+              onSeeAllDishes: () => _openSeeAll('dishes'),
+              onSeeAllRestaurants: () => _openSeeAll('restaurants'),
             ),
             SearchPage(onViewItem: _openItem),
             const OrdersPage(),
