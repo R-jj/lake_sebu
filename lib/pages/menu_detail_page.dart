@@ -3,13 +3,18 @@ import 'package:provider/provider.dart';
 import '../constants.dart';
 import '../providers/menu_providers.dart';
 import '../widgets/app_image.dart';
+import '../widgets/floating_cart_bar.dart';
 
 /// Full-screen menu item detail — sizes, add-ons, quantity, and related items.
 class MenuDetailPage extends StatefulWidget {
   final String itemId;
   final VoidCallback onBack;
-  final void Function(Map<String, dynamic> item, double price) onAddToCart;
+  final void Function(Map<String, dynamic> item, double price, {int qty}) onAddToCart;
   final void Function(String id) onViewItem;
+  final void Function(String id)? onViewRestaurant;
+  final int cartCount;
+  final double cartTotal;
+  final VoidCallback? onOpenCart;
 
   const MenuDetailPage({
     super.key,
@@ -17,6 +22,10 @@ class MenuDetailPage extends StatefulWidget {
     required this.onBack,
     required this.onAddToCart,
     required this.onViewItem,
+    this.onViewRestaurant,
+    this.cartCount = 0,
+    this.cartTotal = 0,
+    this.onOpenCart,
   });
 
   @override
@@ -62,7 +71,7 @@ class _MenuDetailPageState extends State<MenuDetailPage> {
   }
 
   void _handleAdd() {
-    widget.onAddToCart(_item, _unitPrice);
+    widget.onAddToCart(_item, _unitPrice, qty: _qty);
     setState(() => _addedFlash = true);
     Future.delayed(const Duration(milliseconds: 1500), () {
       if (mounted) setState(() => _addedFlash = false);
@@ -179,6 +188,13 @@ class _MenuDetailPageState extends State<MenuDetailPage> {
                 ),
               ),
             ),
+            // ── Cart bar — sits between scroll area and add-to-cart bar ────
+            if (widget.cartCount > 0)
+              FloatingCartBar(
+                cartCount: widget.cartCount,
+                cartTotal: widget.cartTotal,
+                onTap: widget.onOpenCart ?? () {},
+              ),
             _buildBottomBar(),
           ],
         ),
@@ -347,7 +363,13 @@ class _MenuDetailPageState extends State<MenuDetailPage> {
   }
 
   Widget _buildRestaurantRow(Map<String, dynamic> item) {
-    return Container(
+    final restaurantName =
+        item['restaurantName'] as String? ?? item['restaurant'] as String?;
+    final restaurant =
+        context.read<MenuProvider>().restaurantByName(restaurantName);
+    final restaurantId = restaurant?['id'] as String?;
+
+    final row = Container(
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
       decoration: BoxDecoration(color: kSurface, border: Border.all(color: kSurface2), borderRadius: BorderRadius.circular(14)),
       child: Row(
@@ -378,6 +400,14 @@ class _MenuDetailPageState extends State<MenuDetailPage> {
         ],
       ),
     );
+
+    if (widget.onViewRestaurant != null && restaurantId != null) {
+      return GestureDetector(
+        onTap: () => widget.onViewRestaurant!(restaurantId),
+        child: row,
+      );
+    }
+    return row;
   }
 
   Widget _buildSectionTitle(String title) {

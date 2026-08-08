@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import '../constants.dart';
 import '../providers/menu_providers.dart';
 import '../widgets/app_image.dart';
+import '../widgets/floating_cart_bar.dart';
 import '_sub_page_shell.dart';
 
 const _kSortOptions = [
@@ -17,12 +18,18 @@ class AllDishesPage extends StatefulWidget {
   final VoidCallback onBack;
   final void Function(String id) onViewItem;
   final void Function(Map<String, dynamic> item) onAddToCart;
+  final int cartCount;
+  final double cartTotal;
+  final VoidCallback? onOpenCart;
 
   const AllDishesPage({
     super.key,
     required this.onBack,
     required this.onViewItem,
     required this.onAddToCart,
+    this.cartCount = 0,
+    this.cartTotal = 0,
+    this.onOpenCart,
   });
 
   @override
@@ -152,46 +159,63 @@ class _AllDishesPageState extends State<AllDishesPage> {
     final visibleItems = allFiltered.take(_visibleCount).toList();
     final hasMore = _visibleCount < allFiltered.length;
 
-    return SubPageShell(
-      title: 'All dishes',
-      subtitle: '${allFiltered.length} item${allFiltered.length != 1 ? 's' : ''}',
-      onBack: widget.onBack,
-      child: Column(
-        children: [
-          _buildSearchBar(),
-          const SizedBox(height: 10),
-          _buildFilterTabs(dynamicFilterTabs),
-          const SizedBox(height: 8),
-          _buildSortRow(),
-          const SizedBox(height: 12),
-          Expanded(
-            child: provider.isLoading
-                ? const Center(child: CircularProgressIndicator())
-                : allFiltered.isEmpty
-                    ? _buildEmpty()
-                    : ListView.separated(
-                        controller: _scrollCtrl,
-                        padding: const EdgeInsets.fromLTRB(20, 0, 20, 28),
-                        physics: const BouncingScrollPhysics(),
-                        itemCount: visibleItems.length + (hasMore ? 1 : 0),
-                        separatorBuilder: (_, __) => const SizedBox(height: 12),
-                        itemBuilder: (context, i) {
-                          if (i == visibleItems.length) {
-                            return const Padding(
-                              padding: EdgeInsets.symmetric(vertical: 20),
-                              child: Center(child: CircularProgressIndicator()),
-                            );
-                          }
-                          return _DishTile(
-                            item: visibleItems[i],
-                            onViewItem: widget.onViewItem,
-                            onAddToCart: widget.onAddToCart,
-                          );
-                        },
-                      ),
+    return Stack(
+      children: [
+        SubPageShell(
+          title: 'All dishes',
+          subtitle: '${allFiltered.length} item${allFiltered.length != 1 ? 's' : ''}',
+          onBack: widget.onBack,
+          child: Column(
+            children: [
+              _buildSearchBar(),
+              const SizedBox(height: 10),
+              _buildFilterTabs(dynamicFilterTabs),
+              const SizedBox(height: 8),
+              _buildSortRow(),
+              const SizedBox(height: 12),
+              Expanded(
+                child: provider.isLoading
+                    ? const Center(child: CircularProgressIndicator())
+                    : allFiltered.isEmpty
+                        ? _buildEmpty()
+                        : ListView.separated(
+                            controller: _scrollCtrl,
+                            padding: EdgeInsets.fromLTRB(20, 0, 20, widget.cartCount > 0 ? 96 : 28),
+                            physics: const BouncingScrollPhysics(),
+                            itemCount: visibleItems.length + (hasMore ? 1 : 0),
+                            separatorBuilder: (_, __) => const SizedBox(height: 12),
+                            itemBuilder: (context, i) {
+                              if (i == visibleItems.length) {
+                                return const Padding(
+                                  padding: EdgeInsets.symmetric(vertical: 20),
+                                  child: Center(child: CircularProgressIndicator()),
+                                );
+                              }
+                              return _DishTile(
+                                item: visibleItems[i],
+                                onViewItem: widget.onViewItem,
+                                onAddToCart: widget.onAddToCart,
+                              );
+                            },
+                          ),
+              ),
+            ],
           ),
-        ],
-      ),
+        ),
+
+        // ── Floating cart bar ─────────────────────────────────────────────
+        if (widget.cartCount > 0)
+          Positioned(
+            left: 0,
+            right: 0,
+            bottom: 0,
+            child: FloatingCartBar(
+              cartCount: widget.cartCount,
+              cartTotal: widget.cartTotal,
+              onTap: widget.onOpenCart ?? () {},
+            ),
+          ),
+      ],
     );
   }
 

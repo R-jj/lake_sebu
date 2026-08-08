@@ -10,6 +10,7 @@ import 'pages/cart_page.dart';
 import 'pages/address_page.dart';
 import 'pages/all_categories_page.dart';
 import 'pages/all_dishes_page.dart';
+import 'pages/restaurant_page.dart';
 import 'pages/all_restaurants_page.dart';
 
 class RootShell extends StatefulWidget {
@@ -23,6 +24,7 @@ class _RootShellState extends State<RootShell> {
   // ── Navigation state ────────────────────────────────────────────────────────
   String _page = 'home';
   String? _viewingItemId;
+  String? _viewingRestaurantId;
   bool _showAddressPage = false;
 
   // ── See-all overlays ─────────────────────────────────────────────────────────
@@ -36,13 +38,16 @@ class _RootShellState extends State<RootShell> {
   final List<CartItem> _cartItems = [];
 
   int get _cartCount => _cartItems.fold(0, (sum, i) => sum + i.qty);
+  double get _cartTotal => _cartItems.fold(0.0, (sum, i) => sum + i.price * i.qty);
 
   // ── Navigation helpers ───────────────────────────────────────────────────────
 
   void _goTo(String page) => setState(() {
         _page = page;
         _viewingItemId = null;
+        _viewingRestaurantId = null;
         _showAddressPage = false;
+        _seeAllPage = null;
       });
 
   void _openItem(String id) => setState(() => _viewingItemId = id);
@@ -59,15 +64,20 @@ class _RootShellState extends State<RootShell> {
 
   void _closeSeeAll() => setState(() => _seeAllPage = null);
 
+  void _openRestaurant(String id) => setState(() => _viewingRestaurantId = id);
+
+  void _closeRestaurant() => setState(() => _viewingRestaurantId = null);
+
   // ── Cart helpers ─────────────────────────────────────────────────────────────
 
-  void _addToCart(Map<String, dynamic> item, {double? price}) {
+  void _addToCart(Map<String, dynamic> item, {double? price, int qty = 1}) {
     final basePrice = price ?? (item['price'] as num?)?.toDouble() ?? 0;
+    final addQty = qty.clamp(1, 99);
     setState(() {
       final idx = _cartItems.indexWhere((i) => i.id == '${item['id']}');
       if (idx != -1) {
         _cartItems[idx] =
-            _cartItems[idx].copyWith(qty: _cartItems[idx].qty + 1);
+            _cartItems[idx].copyWith(qty: _cartItems[idx].qty + addQty);
       } else {
         _cartItems.add(CartItem(
           id: '${item['id']}',
@@ -77,13 +87,14 @@ class _RootShellState extends State<RootShell> {
               'Restaurant',
           price: basePrice,
           img: item['img'] as String? ?? '',
+          qty: addQty,
         ));
       }
     });
   }
 
-  void _addFromDetail(Map<String, dynamic> item, double price) =>
-      _addToCart(item, price: price);
+  void _addFromDetail(Map<String, dynamic> item, double price, {int qty = 1}) =>
+      _addToCart(item, price: price, qty: qty);
 
   void _updateCartItem(String id, int qty) {
     setState(() {
@@ -101,8 +112,40 @@ class _RootShellState extends State<RootShell> {
 
   // ── Build ────────────────────────────────────────────────────────────────────
 
+  /// Returns true when there is an overlay layer that the back button can close.
+  bool get _canPop =>
+      _showAddressPage ||
+      _seeAllPage != null ||
+      _viewingItemId != null ||
+      _viewingRestaurantId != null ||
+      _page == 'cart';
+
+  void _handlePop() {
+    if (_showAddressPage) {
+      _closeAddress();
+    } else if (_viewingItemId != null) {
+      _closeItem();
+    } else if (_viewingRestaurantId != null) {
+      _closeRestaurant();
+    } else if (_seeAllPage != null) {
+      _closeSeeAll();
+    } else if (_page == 'cart') {
+      _goTo('home');
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
+    return PopScope(
+      canPop: !_canPop,
+      onPopInvokedWithResult: (didPop, _) {
+        if (!didPop && _canPop) _handlePop();
+      },
+      child: _buildContent(),
+    );
+  }
+
+  Widget _buildContent() {
     // Address picker overlays everything (including the menu detail page).
     if (_showAddressPage) {
       return Scaffold(
@@ -140,6 +183,9 @@ class _RootShellState extends State<RootShell> {
               _openItem(id);
             },
             onAddToCart: _addToCart,
+            cartCount: _cartCount,
+            cartTotal: _cartTotal,
+            onOpenCart: () => _goTo('cart'),
           ),
         ),
       );
@@ -153,6 +199,11 @@ class _RootShellState extends State<RootShell> {
             onViewItem: (id) {
               _closeSeeAll();
               _openItem(id);
+            },
+
+            onViewRestaurant: (id) {
+              _closeSeeAll();
+              _openRestaurant(id);
             },
           ),
         ),
@@ -169,6 +220,30 @@ class _RootShellState extends State<RootShell> {
             onBack: _closeItem,
             onAddToCart: _addFromDetail,
             onViewItem: _openItem,
+            onViewRestaurant: (id) {
+              _closeItem();
+              _openRestaurant(id);
+            },
+            cartCount: _cartCount,
+            cartTotal: _cartTotal,
+            onOpenCart: () => _goTo('cart'),
+          ),
+        ),
+      );
+    }
+
+    if (_viewingRestaurantId != null) {
+      return Scaffold(
+        backgroundColor: kCanvas,
+        body: SafeArea(
+          child: RestaurantPage(
+            restaurantId: _viewingRestaurantId!,
+            onBack: _closeRestaurant,
+            onViewItem: _openItem,
+            onAddToCart: _addToCart,
+            cartCount: _cartCount,
+            cartTotal: _cartTotal,
+            onOpenCart: () => _goTo('cart'),
           ),
         ),
       );
@@ -191,6 +266,7 @@ class _RootShellState extends State<RootShell> {
               onSeeAllCategories: () => _openSeeAll('categories'),
               onSeeAllDishes: () => _openSeeAll('dishes'),
               onSeeAllRestaurants: () => _openSeeAll('restaurants'),
+              onViewRestaurant: _openRestaurant
             ),
             SearchPage(onViewItem: _openItem),
             const OrdersPage(),

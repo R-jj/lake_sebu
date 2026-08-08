@@ -6,6 +6,8 @@ class Address {
   final String line2;
   final String icon;
   final bool isDefault;
+  final double? lat;
+  final double? lng;
 
   const Address({
     required this.id,
@@ -14,7 +16,11 @@ class Address {
     required this.line2,
     required this.icon,
     this.isDefault = false,
+    this.lat,
+    this.lng,
   });
+
+  bool get hasCoordinates => lat != null && lng != null;
 
   Address copyWith({
     int? id,
@@ -23,6 +29,8 @@ class Address {
     String? line2,
     String? icon,
     bool? isDefault,
+    double? lat,
+    double? lng,
   }) =>
       Address(
         id: id ?? this.id,
@@ -31,5 +39,7 @@ class Address {
         line2: line2 ?? this.line2,
         icon: icon ?? this.icon,
         isDefault: isDefault ?? this.isDefault,
+        lat: lat ?? this.lat,
+        lng: lng ?? this.lng,
       );
 }

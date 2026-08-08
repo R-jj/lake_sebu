@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../constants.dart';
 import '../models/address.dart';
 import '_sub_page_shell.dart';
+import 'map_picker_page.dart';
 
 final List<Address> _kDefault = [
   Address(id: 1, label: 'Home', line1: '123 Main Street', line2: 'Apt 4B, New York, NY 10001', icon: '🏠', isDefault: true),
@@ -25,6 +26,10 @@ class _SavedAddressesPageState extends State<SavedAddressesPage> {
   final _labelCtrl = TextEditingController();
   final _line1Ctrl = TextEditingController();
   final _line2Ctrl = TextEditingController();
+
+  // Coordinates picked from the map
+  double? _newLat;
+  double? _newLng;
 
   @override
   void dispose() {
@@ -51,12 +56,34 @@ class _SavedAddressesPageState extends State<SavedAddressesPage> {
           line1: _line1Ctrl.text.trim(),
           line2: _line2Ctrl.text.trim(),
           icon: '📍',
+          lat: _newLat,
+          lng: _newLng,
         ),
       ];
       _showForm = false;
       _labelCtrl.clear();
       _line1Ctrl.clear();
       _line2Ctrl.clear();
+      _newLat = null;
+      _newLng = null;
+    });
+  }
+
+  Future<void> _openMapPicker() async {
+    final result = await Navigator.of(context).push<MapPickerResult>(
+      MaterialPageRoute(
+        builder: (_) => const MapPickerPage(),
+        fullscreenDialog: true,
+      ),
+    );
+    if (result == null || !mounted) return;
+
+    setState(() {
+      _newLat = result.lat;
+      _newLng = result.lng;
+      _line1Ctrl.text = result.address;
+      _line2Ctrl.clear();
+      _showForm = true;
     });
   }
 
@@ -78,7 +105,16 @@ class _SavedAddressesPageState extends State<SavedAddressesPage> {
                 ),
               )),
           GestureDetector(
-            onTap: () => setState(() => _showForm = !_showForm),
+            onTap: () => setState(() {
+              _showForm = !_showForm;
+              if (!_showForm) {
+                _labelCtrl.clear();
+                _line1Ctrl.clear();
+                _line2Ctrl.clear();
+                _newLat = null;
+                _newLng = null;
+              }
+            }),
             child: Container(
               padding: const EdgeInsets.symmetric(vertical: 14),
               decoration: BoxDecoration(
@@ -102,6 +138,8 @@ class _SavedAddressesPageState extends State<SavedAddressesPage> {
   }
 
   Widget _buildForm() {
+    final hasPinnedLocation = _newLat != null && _newLng != null;
+
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
@@ -110,7 +148,52 @@ class _SavedAddressesPageState extends State<SavedAddressesPage> {
         borderRadius: BorderRadius.circular(18),
       ),
       child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          // ── Pin on map button ─────────────────────────────────────────────
+          GestureDetector(
+            onTap: _openMapPicker,
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+              decoration: BoxDecoration(
+                color: hasPinnedLocation
+                    ? kBrand.withValues(alpha: 0.08)
+                    : kSurface2,
+                border: Border.all(
+                  color: hasPinnedLocation ? kBrand.withValues(alpha: 0.4) : kBorder,
+                ),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Row(
+                children: [
+                  Icon(
+                    hasPinnedLocation ? Icons.location_on : Icons.add_location_alt_outlined,
+                    size: 18,
+                    color: hasPinnedLocation ? kBrand : kMuted,
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Text(
+                      hasPinnedLocation
+                          ? '📍 ${_newLat!.toStringAsFixed(5)}, ${_newLng!.toStringAsFixed(5)}'
+                          : 'Pin location on map',
+                      style: TextStyle(
+                        color: hasPinnedLocation ? kBrand : kMuted,
+                        fontSize: 13,
+                        fontWeight: hasPinnedLocation ? FontWeight.w600 : FontWeight.w400,
+                      ),
+                    ),
+                  ),
+                  Icon(
+                    Icons.chevron_right,
+                    size: 16,
+                    color: hasPinnedLocation ? kBrand : kMuted,
+                  ),
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(height: 8),
           _field(_labelCtrl, 'Label (Home, Office…)'),
           const SizedBox(height: 8),
           _field(_line1Ctrl, 'Street address *'),
@@ -241,6 +324,20 @@ class _AddressTile extends StatelessWidget {
                             fontWeight: FontWeight.w600)),
                     Text(addr.line2,
                         style: const TextStyle(color: kMuted, fontSize: 12)),
+                    // Show coordinates badge if address was pinned on map
+                    if (addr.hasCoordinates) ...[
+                      const SizedBox(height: 4),
+                      Row(
+                        children: [
+                          const Icon(Icons.location_on, size: 11, color: kBrand),
+                          const SizedBox(width: 3),
+                          Text(
+                            '${addr.lat!.toStringAsFixed(4)}, ${addr.lng!.toStringAsFixed(4)}',
+                            style: const TextStyle(color: kBrand, fontSize: 11),
+                          ),
+                        ],
+                      ),
+                    ],
                   ],
                 ),
               ),

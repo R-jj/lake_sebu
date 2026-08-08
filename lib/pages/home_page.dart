@@ -9,6 +9,7 @@ class HomePage extends StatefulWidget {
   final void Function(Map<String, dynamic> item) onAddToCart;
   final VoidCallback onOpenCart;
   final void Function(String id) onViewItem;
+  final void Function(String id) onViewRestaurant;
   final VoidCallback onSearchTap;
   final VoidCallback onOpenAddress;
   final String deliveryAddress;
@@ -28,6 +29,7 @@ class HomePage extends StatefulWidget {
     required this.onSeeAllCategories,
     required this.onSeeAllDishes,
     required this.onSeeAllRestaurants,
+    required this.onViewRestaurant,
   });
 
   @override
@@ -79,34 +81,42 @@ class _HomePageState extends State<HomePage> {
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          GestureDetector(
-            onTap: widget.onOpenAddress,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Row(
-                  children: [
-                    Icon(Icons.location_on, size: 13, color: kMuted),
-                    SizedBox(width: 4),
-                    Text(
-                      'Delivering to',
-                      style: TextStyle(color: kMuted, fontSize: 12, fontWeight: FontWeight.w500),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 2),
-                Row(
-                  children: [
-                    Text(
-                      '${widget.deliveryAddress} ',
-                      style: const TextStyle(color: kInk, fontSize: 15, fontWeight: FontWeight.w700),
-                    ),
-                    const Icon(Icons.keyboard_arrow_down, size: 18, color: kBrand),
-                  ],
-                ),
-              ],
+          Expanded(
+            child: GestureDetector(
+              onTap: widget.onOpenAddress,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Row(
+                    children: [
+                      Icon(Icons.location_on, size: 13, color: kMuted),
+                      SizedBox(width: 4),
+                      Text(
+                        'Delivering to',
+                        style: TextStyle(color: kMuted, fontSize: 12, fontWeight: FontWeight.w500),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 2),
+                  Row(
+                    children: [
+                      Flexible(
+                        child: Text(
+                          widget.deliveryAddress,
+                          style: const TextStyle(color: kInk, fontSize: 15, fontWeight: FontWeight.w700),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                      const SizedBox(width: 2),
+                      const Icon(Icons.keyboard_arrow_down, size: 18, color: kBrand),
+                    ],
+                  ),
+                ],
+              ),
             ),
           ),
+          const SizedBox(width: 12),
           GestureDetector(
             onTap: widget.onOpenCart,
             child: Stack(
@@ -381,7 +391,13 @@ class _HomePageState extends State<HomePage> {
             padding: const EdgeInsets.symmetric(horizontal: 20),
             itemCount: menuProvider.restaurants.length,
             separatorBuilder: (_, __) => const SizedBox(height: 12),
-            itemBuilder: (context, i) => RestaurantCard(restaurant: menuProvider.restaurants[i]),
+            itemBuilder: (context, i) {
+              final restaurant = menuProvider.restaurants[i];
+              return GestureDetector(
+                onTap: () => widget.onViewRestaurant('${restaurant['id']}'),
+                child: RestaurantCard(restaurant: restaurant),
+              );
+            }
           ),
       ],
     );

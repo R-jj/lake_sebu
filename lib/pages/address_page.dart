@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:google_maps_flutter/google_maps_flutter.dart';
 import '../constants.dart';
 import '../models/address.dart';
+import 'map_picker_page.dart';
 
 // ── Static seed data ──────────────────────────────────────────────────────────
 
@@ -51,6 +53,10 @@ class _AddressPageState extends State<AddressPage> {
   final TextEditingController _line1Ctrl = TextEditingController();
   final TextEditingController _line2Ctrl = TextEditingController();
 
+  // Coordinates picked from the map for the new address
+  double? _newLat;
+  double? _newLng;
+
   // Which id is currently selected (int for saved, String for nearby)
   late Object _selectedId;
 
@@ -99,6 +105,8 @@ class _AddressPageState extends State<AddressPage> {
       line1: _line1Ctrl.text.trim(),
       line2: _line2Ctrl.text.trim(),
       icon: '📍',
+      lat: _newLat,
+      lng: _newLng,
     );
     setState(() {
       _addresses = [..._addresses, next];
@@ -106,7 +114,53 @@ class _AddressPageState extends State<AddressPage> {
       _labelCtrl.clear();
       _line1Ctrl.clear();
       _line2Ctrl.clear();
+      _newLat = null;
+      _newLng = null;
     });
+    _handleSelect(next.id, next.line1);
+  }
+
+  /// Opens MapPickerPage. If [initialLatLng] is provided the map starts there.
+  Future<void> _openMapPicker({LatLng? initialLatLng}) async {
+    final result = await Navigator.of(context).push<MapPickerResult>(
+      MaterialPageRoute(
+        builder: (_) => MapPickerPage(initialPosition: initialLatLng),
+        fullscreenDialog: true,
+      ),
+    );
+    if (result == null || !mounted) return;
+
+    setState(() {
+      _newLat = result.lat;
+      _newLng = result.lng;
+      _line1Ctrl.text = result.address;
+      _line2Ctrl.clear();
+      _showAddForm = true;
+    });
+  }
+
+  /// "Use my current location" tapped — open the map (no initial position,
+  /// the map will auto-locate via its own FAB logic).
+  Future<void> _useCurrentLocation() async {
+    final result = await Navigator.of(context).push<MapPickerResult>(
+      MaterialPageRoute(
+        builder: (_) => const MapPickerPage(),
+        fullscreenDialog: true,
+      ),
+    );
+    if (result == null || !mounted) return;
+
+    // Build an address from the result and select it immediately.
+    final next = Address(
+      id: DateTime.now().millisecondsSinceEpoch,
+      label: 'Current Location',
+      line1: result.address,
+      line2: '${result.lat.toStringAsFixed(5)}, ${result.lng.toStringAsFixed(5)}',
+      icon: '📍',
+      lat: result.lat,
+      lng: result.lng,
+    );
+    setState(() => _addresses = [..._addresses, next]);
     _handleSelect(next.id, next.line1);
   }
 
@@ -230,39 +284,42 @@ class _AddressPageState extends State<AddressPage> {
   // ── Current location button ───────────────────────────────────────────────
 
   Widget _buildCurrentLocationBtn() {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-      decoration: BoxDecoration(
-        color: kBrand.withValues(alpha: 0.08),
-        border: Border.all(color: kBrand.withValues(alpha: 0.2)),
-        borderRadius: BorderRadius.circular(16),
-      ),
-      child: Row(
-        children: [
-          Container(
-            width: 40,
-            height: 40,
-            decoration: BoxDecoration(
-              color: kBrand.withValues(alpha: 0.15),
-              borderRadius: BorderRadius.circular(12),
+    return GestureDetector(
+      onTap: _useCurrentLocation,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+        decoration: BoxDecoration(
+          color: kBrand.withValues(alpha: 0.08),
+          border: Border.all(color: kBrand.withValues(alpha: 0.2)),
+          borderRadius: BorderRadius.circular(16),
+        ),
+        child: Row(
+          children: [
+            Container(
+              width: 40,
+              height: 40,
+              decoration: BoxDecoration(
+                color: kBrand.withValues(alpha: 0.15),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: const Center(child: Icon(Icons.my_location, size: 20, color: kBrand)),
             ),
-            child: const Center(child: Icon(Icons.my_location, size: 20, color: kBrand)),
-          ),
-          const SizedBox(width: 14),
-          const Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text('Use my current location',
-                    style: TextStyle(color: kBrand, fontSize: 14, fontWeight: FontWeight.w800)),
-                SizedBox(height: 2),
-                Text('GPS · Accurate to ~10m',
-                    style: TextStyle(color: kMuted, fontSize: 12)),
-              ],
+            const SizedBox(width: 14),
+            const Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('Use my current location',
+                      style: TextStyle(color: kBrand, fontSize: 14, fontWeight: FontWeight.w800)),
+                  SizedBox(height: 2),
+                  Text('Opens map · Pin your exact spot',
+                      style: TextStyle(color: kMuted, fontSize: 12)),
+                ],
+              ),
             ),
-          ),
-          const Icon(Icons.chevron_right, color: kBrand, size: 20),
-        ],
+            const Icon(Icons.chevron_right, color: kBrand, size: 20),
+          ],
+        ),
       ),
     );
   }
@@ -307,6 +364,8 @@ class _AddressPageState extends State<AddressPage> {
   }
 
   Widget _buildAddForm() {
+    final hasPinnedLocation = _newLat != null && _newLng != null;
+
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
@@ -320,6 +379,52 @@ class _AddressPageState extends State<AddressPage> {
           const Text('New address',
               style: TextStyle(color: kInk, fontSize: 14, fontWeight: FontWeight.w800)),
           const SizedBox(height: 12),
+
+          // ── Pin on map button ───────────────────────────────────────────
+          GestureDetector(
+            onTap: () => _openMapPicker(),
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
+              decoration: BoxDecoration(
+                color: hasPinnedLocation
+                    ? kBrand.withValues(alpha: 0.08)
+                    : kSurface2,
+                border: Border.all(
+                  color: hasPinnedLocation ? kBrand.withValues(alpha: 0.4) : kBorder,
+                ),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Row(
+                children: [
+                  Icon(
+                    hasPinnedLocation ? Icons.location_on : Icons.add_location_alt_outlined,
+                    size: 18,
+                    color: hasPinnedLocation ? kBrand : kMuted,
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Text(
+                      hasPinnedLocation
+                          ? '📍 ${_newLat!.toStringAsFixed(5)}, ${_newLng!.toStringAsFixed(5)}'
+                          : 'Pin location on map',
+                      style: TextStyle(
+                        color: hasPinnedLocation ? kBrand : kMuted,
+                        fontSize: 13,
+                        fontWeight: hasPinnedLocation ? FontWeight.w600 : FontWeight.w400,
+                      ),
+                    ),
+                  ),
+                  Icon(
+                    Icons.chevron_right,
+                    size: 16,
+                    color: hasPinnedLocation ? kBrand : kMuted,
+                  ),
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(height: 8),
+
           _formField(_labelCtrl, 'Label (e.g. Home, Office)'),
           const SizedBox(height: 8),
           _formField(_line1Ctrl, 'Street address *'),
