@@ -43,3 +43,19 @@ app.*.map.json
 /android/app/debug
 /android/app/profile
 /android/app/release
+
+# ── Secrets — never commit these ──────────────────────────────────────────────
+# Android: real key lives here, injected into the build by Gradle
+android/local.properties
+
+# Android Firebase config (regenerate with `flutterfire configure`)
+android/app/google-services.json
+
+# iOS Firebase config plist
+ios/Runner/GoogleService-Info.plist
+
+# Dart Firebase options (regenerate with `flutterfire configure`)
+lib/firebase_options.dart
+
+# iOS secrets xcconfig (holds MAPS_API_KEY, sourced by Debug/Release.xcconfig)
+ios/Flutter/Secrets.xcconfig
