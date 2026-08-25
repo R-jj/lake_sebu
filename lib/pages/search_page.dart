@@ -178,36 +178,42 @@ class _SearchPageState extends State<SearchPage> {
                         Wrap(
                           spacing: 10,
                           runSpacing: 10,
-                          children: kSearchSuggestions.map((s) {
-                            final label = s['label'] as String;
-                            return GestureDetector(
-                              onTap: () => _setQuery(label),
-                              child: Container(
-                                padding: const EdgeInsets.symmetric(
-                                    horizontal: 16, vertical: 8),
-                                decoration: BoxDecoration(
-                                  color: kSurface,
-                                  border: Border.all(color: kBorder),
-                                  borderRadius:
-                                      BorderRadius.circular(100),
+                          children: (() {
+                            final cats = menuProvider.allItems
+                                .map((item) => item['category'] as String? ?? '')
+                                .where((c) => c.isNotEmpty)
+                                .toSet()
+                                .toList()
+                              ..sort();
+                            return cats.map((label) {
+                              final icon =
+                                  kCategoryIcons[label] ?? Icons.restaurant;
+                              return GestureDetector(
+                                onTap: () => _setQuery(label),
+                                child: Container(
+                                  padding: const EdgeInsets.symmetric(
+                                      horizontal: 16, vertical: 8),
+                                  decoration: BoxDecoration(
+                                    color: kSurface,
+                                    border: Border.all(color: kBorder),
+                                    borderRadius: BorderRadius.circular(100),
+                                  ),
+                                  child: Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Icon(icon, size: 16, color: kInk),
+                                      const SizedBox(width: 6),
+                                      Text(label,
+                                          style: const TextStyle(
+                                              color: kInk,
+                                              fontSize: 13,
+                                              fontWeight: FontWeight.w600)),
+                                    ],
+                                  ),
                                 ),
-                                child: Row(
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    Icon(s['icon'] as IconData,
-                                        size: 16, color: kInk),
-                                    const SizedBox(width: 6),
-                                    Text(label,
-                                        style: const TextStyle(
-                                            color: kInk,
-                                            fontSize: 13,
-                                            fontWeight:
-                                                FontWeight.w600)),
-                                  ],
-                                ),
-                              ),
-                            );
-                          }).toList(),
+                              );
+                            }).toList();
+                          })(),
                         ),
                         const SizedBox(height: 24),
                         const Row(

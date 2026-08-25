@@ -1,0 +1,38 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# Cloudflare Worker — SwiftBite / Lake Sebu Menu Image Presigner
+#
+# This Worker:
+#   1. Verifies a Firebase ID token supplied by the Flutter app.
+#   2. Reads the caller's restaurantId from Firestore via REST API.
+#   3. Validates the requested object path belongs to that restaurant.
+#   4. Generates a short-lived R2 presigned PUT URL and returns it.
+#   5. Handles DELETE requests for R2 objects (image cleanup).
+#
+# SETUP INSTRUCTIONS
+# ──────────────────
+# 1. Replace the placeholder values in [vars] below with your real project IDs.
+# 2. Create the R2 bucket:
+#      wrangler r2 bucket create lake-sebu-menu-images
+# 3. Set secrets (never commit these):
+#      wrangler secret put R2_ACCESS_KEY_ID
+#      wrangler secret put R2_SECRET_ACCESS_KEY
+#      wrangler secret put FIREBASE_SERVICE_ACCOUNT_KEY   ← JSON of a service account
+# 4. Deploy:
+#      wrangler deploy
+# ─────────────────────────────────────────────────────────────────────────────
+
+name        = "lake-sebu-menu-images"
+main        = "src/index.ts"
+compatibility_date = "2024-01-01"
+compatibility_flags = ["nodejs_compat"]
+
+[[r2_buckets]]
+binding    = "MENU_IMAGES"       # available as env.MENU_IMAGES in the Worker
+bucket_name = "lake-sebu-menu-images"
+
+[vars]
+# ── Replace with your real values ────────────────────────────────────────────
+FIREBASE_PROJECT_ID = "lakesebu-dcd8c"
+R2_BUCKET_NAME      = "lake-sebu-menu-images"
+R2_ACCOUNT_ID       = "56ddd793073c05bc859a4f27d25b4e9b"
+R2_PUBLIC_BASE_URL  = "https://lake-sebu-menu-images.lakesebu.workers.dev"

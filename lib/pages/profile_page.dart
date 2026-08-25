@@ -1,5 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import '../constants.dart';
+import '../providers/auth_provider.dart';
+import '../providers/user_profile_provider.dart';
+import '../services/phone_validator.dart';
+import '../widgets/app_image.dart';
 import 'saved_addresses_page.dart';
 import 'favourites_page.dart';
 import 'payment_methods_page.dart';
@@ -70,18 +75,21 @@ class _ProfilePageState extends State<ProfilePage> {
           _buildPreferencesSection(),
           Padding(
             padding: const EdgeInsets.fromLTRB(20, 0, 20, 32),
-            child: Container(
-              width: double.infinity,
-              padding: const EdgeInsets.symmetric(vertical: 14),
-              decoration: BoxDecoration(
-                color: kRed.withValues(alpha: 0.08),
-                border: Border.all(color: kRed.withValues(alpha: 0.2)),
-                borderRadius: BorderRadius.circular(16),
+            child: GestureDetector(
+              onTap: () => _confirmSignOut(context),
+              child: Container(
+                width: double.infinity,
+                padding: const EdgeInsets.symmetric(vertical: 14),
+                decoration: BoxDecoration(
+                  color: kRed.withValues(alpha: 0.08),
+                  border: Border.all(color: kRed.withValues(alpha: 0.2)),
+                  borderRadius: BorderRadius.circular(16),
+                ),
+                alignment: Alignment.center,
+                child: const Text('Sign out',
+                    style: TextStyle(
+                        color: kRed, fontSize: 15, fontWeight: FontWeight.w700)),
               ),
-              alignment: Alignment.center,
-              child: const Text('Sign out',
-                  style: TextStyle(
-                      color: kRed, fontSize: 15, fontWeight: FontWeight.w700)),
             ),
           ),
         ],
@@ -89,7 +97,65 @@ class _ProfilePageState extends State<ProfilePage> {
     );
   }
 
+  Future<void> _confirmSignOut(BuildContext context) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: kSurface,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: Text(
+          'Sign out?',
+          style: kSerif.copyWith(
+              color: kInk, fontWeight: FontWeight.w900, fontSize: 18),
+        ),
+        content: const Text(
+          'You will need to sign in again to access your account.',
+          style: TextStyle(color: kMuted, fontSize: 14, height: 1.5),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: const Text('Cancel',
+                style: TextStyle(
+                    color: kMuted, fontSize: 14, fontWeight: FontWeight.w600)),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(true),
+            child: const Text('Sign out',
+                style: TextStyle(
+                    color: kRed, fontSize: 14, fontWeight: FontWeight.w700)),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed == true && context.mounted) {
+      await context.read<AppAuthProvider>().signOut();
+      // _AuthGate in main.dart reacts automatically — no Navigator.push needed.
+    }
+  }
+
   Widget _buildHero() {
+    final auth = context.watch<AppAuthProvider>();
+    final profileProvider = context.watch<UserProfileProvider>();
+    final profile = profileProvider.profile;
+
+    final displayName = profile?.displayName.isNotEmpty == true
+        ? profile!.displayName
+        : (auth.user?.name ?? 'User');
+    final displayEmail = profile?.email ?? auth.user?.email ?? '';
+    final initial = displayName.isNotEmpty
+        ? displayName[0].toUpperCase()
+        : 'U';
+    final photoUrl = profile?.photoUrl ?? auth.user?.photoUrl;
+
+    // Phone display
+    final phone = profile?.phoneNumber;
+    final phoneVerified = profile?.phoneNumberVerified ?? false;
+    final phoneDisplay = phone != null && phone.isNotEmpty
+        ? PhoneValidator.format(phone)
+        : null;
+
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.fromLTRB(20, 20, 20, 24),
@@ -105,56 +171,128 @@ class _ProfilePageState extends State<ProfilePage> {
           Stack(
             clipBehavior: Clip.none,
             children: [
-              Container(
-                width: 80,
-                height: 80,
-                decoration: const BoxDecoration(
-                  shape: BoxShape.circle,
-                  gradient: LinearGradient(
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                    colors: [kBrand, Color(0xFF8B1F00)],
+              // Avatar — photo if available, else initial.
+              if (photoUrl != null && photoUrl.isNotEmpty)
+                ClipOval(
+                  child: SizedBox(
+                    width: 80,
+                    height: 80,
+                    child: AppImage(
+                        url: photoUrl,
+                        width: 80,
+                        height: 80,
+                        fit: BoxFit.cover),
+                  ),
+                )
+              else
+                Container(
+                  width: 80,
+                  height: 80,
+                  decoration: const BoxDecoration(
+                    shape: BoxShape.circle,
+                    gradient: LinearGradient(
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                      colors: [kBrand, Color(0xFF8B1F00)],
+                    ),
+                  ),
+                  child: Center(
+                    child: Text(
+                      initial,
+                      style: kSerif.copyWith(
+                        color: Colors.white,
+                        fontSize: 30,
+                        fontWeight: FontWeight.w900,
+                      ),
+                    ),
                   ),
                 ),
-                child: const Center(
-                    child: Icon(Icons.person, size: 40, color: Colors.white)),
-              ),
               Positioned(
                 bottom: 0,
                 right: 0,
                 child: GestureDetector(
-                  onTap: () => setState(() => _subPage = _SubPage.settings),
+                  onTap: () =>
+                      setState(() => _subPage = _SubPage.settings),
                   child: Container(
                     width: 24,
                     height: 24,
                     decoration: BoxDecoration(
                       color: kBrand,
                       shape: BoxShape.circle,
-                      border: Border.all(color: kCanvas, width: 2),
+                      border:
+                          Border.all(color: kCanvas, width: 2),
                     ),
                     child: const Center(
-                        child: Icon(Icons.edit, size: 12, color: Colors.white)),
+                        child: Icon(Icons.edit,
+                            size: 12, color: Colors.white)),
                   ),
                 ),
               ),
             ],
           ),
           const SizedBox(height: 12),
-          Text('Alex Rivera',
-              style: kSerif.copyWith(
-                  color: kInk, fontWeight: FontWeight.w900, fontSize: 20)),
+          Text(
+            displayName,
+            style: kSerif.copyWith(
+                color: kInk,
+                fontWeight: FontWeight.w900,
+                fontSize: 20),
+          ),
           const SizedBox(height: 4),
-          const Text('alex.rivera@email.com',
-              style: TextStyle(color: kMuted, fontSize: 13)),
+          Text(
+            displayEmail,
+            style: const TextStyle(color: kMuted, fontSize: 13),
+          ),
+          // Phone number + verified badge
+          if (phoneDisplay != null) ...[
+            const SizedBox(height: 6),
+            Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(
+                  phoneVerified
+                      ? Icons.verified_outlined
+                      : Icons.schedule_outlined,
+                  size: 12,
+                  color: phoneVerified ? kGreen : kGold,
+                ),
+                const SizedBox(width: 4),
+                Text(
+                  phoneDisplay,
+                  style: TextStyle(
+                      color: phoneVerified ? kGreen : kGold,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600),
+                ),
+                if (!phoneVerified) ...[
+                  const SizedBox(width: 4),
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 6, vertical: 1),
+                    decoration: BoxDecoration(
+                      color: kGold.withValues(alpha: 0.15),
+                      borderRadius: BorderRadius.circular(100),
+                    ),
+                    child: const Text('Pending',
+                        style: TextStyle(
+                            color: kGold,
+                            fontSize: 9,
+                            fontWeight: FontWeight.w700)),
+                  ),
+                ],
+              ],
+            ),
+          ],
           const SizedBox(height: 10),
           GestureDetector(
             onTap: () => setState(() => _subPage = _SubPage.rewards),
             child: Container(
-              padding:
-                  const EdgeInsets.symmetric(horizontal: 14, vertical: 5),
+              padding: const EdgeInsets.symmetric(
+                  horizontal: 14, vertical: 5),
               decoration: BoxDecoration(
                 color: kGold.withValues(alpha: 0.12),
-                border: Border.all(color: kGold.withValues(alpha: 0.25)),
+                border:
+                    Border.all(color: kGold.withValues(alpha: 0.25)),
                 borderRadius: BorderRadius.circular(100),
               ),
               child: const Row(
@@ -224,11 +362,17 @@ class _ProfilePageState extends State<ProfilePage> {
   }
 
   Widget _buildMenuSection() {
+    final profileProvider = context.watch<UserProfileProvider>();
+    final addressCount = profileProvider.addresses.length;
+    final favCount = profileProvider.favouriteIds.length;
+
     final items = <Map<String, dynamic>>[
       {
         'icon': Icons.location_on_outlined,
         'label': 'Saved addresses',
-        'sub': '3 saved locations',
+        'sub': addressCount == 0
+            ? 'No saved addresses'
+            : '$addressCount saved location${addressCount != 1 ? 's' : ''}',
         'page': _SubPage.addresses,
       },
       {
@@ -246,7 +390,9 @@ class _ProfilePageState extends State<ProfilePage> {
       {
         'icon': Icons.favorite_border,
         'label': 'Favourites',
-        'sub': '4 saved items',
+        'sub': favCount == 0
+            ? 'No saved items'
+            : '$favCount saved item${favCount != 1 ? 's' : ''}',
         'page': _SubPage.favourites,
       },
       {

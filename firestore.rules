@@ -1,0 +1,243 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ── Helper functions ────────────────────────────────────────────────────
+
+    /// Returns true when the request comes from a signed-in user.
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    /// Returns true when the authenticated user's uid matches the document owner.
+    function isOwner(uid) {
+      return isAuthenticated() && request.auth.uid == uid;
+    }
+
+    /// Returns true when a field is NOT present in the incoming write data,
+    /// preventing clients from arbitrarily setting it.
+    function fieldNotChanged(field) {
+      return !(field in request.resource.data)
+          || request.resource.data[field] == resource.data[field];
+    }
+
+    // ── Restaurant-owner helper functions ───────────────────────────────────
+    //
+    // These functions verify restaurant-owner identity server-side by reading
+    // the caller's users/{uid} document.  They are used in the orders rules
+    // to enforce that:
+    //   • an owner can only read orders where order.restaurantId matches
+    //     their profile's restaurantId.
+    //   • an owner can only update the status field of such orders.
+    //
+    // The get() calls count against Firestore read quotas but are the
+    // standard pattern for cross-document authorization in security rules.
+
+    /// Returns true when the authenticated user's profile document exists and
+    /// has role == "restaurant_owner".
+    function isRestaurantOwner() {
+      return isAuthenticated()
+          && exists(/databases/$(database)/documents/users/$(request.auth.uid))
+          && get(/databases/$(database)/documents/users/$(request.auth.uid))
+               .data.role == 'restaurant_owner';
+    }
+
+    /// Returns the restaurantId stored in the authenticated user's profile.
+    /// Only safe to call after confirming isRestaurantOwner() == true.
+    function ownerRestaurantId() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid))
+               .data.restaurantId;
+    }
+
+    /// Returns true when the authenticated restaurant owner's restaurantId
+    /// matches the restaurantId field on the document being accessed.
+    function ownsRestaurant() {
+      return isRestaurantOwner()
+          && ownerRestaurantId() == resource.data.restaurantId;
+    }
+
+    // ── users/{uid} ─────────────────────────────────────────────────────────
+    //
+    // Only the owner can read or write their own profile document.
+    // Clients are NOT allowed to:
+    //   • set phoneNumberVerified = true  (only a trusted write path may do this)
+    //   • change the uid field
+    //   • change the createdAt field after creation
+    //   • change the role field                 ← NEW: prevents self-promotion
+    //   • change the restaurantId field         ← NEW: prevents restaurant hijack
+    //
+    match /users/{uid} {
+
+      allow read: if isOwner(uid);
+
+      // Create: owner only; phoneNumberVerified must start as false.
+      // role and restaurantId may not be set on create from the client —
+      // they are assigned manually via the Firebase Console.
+      allow create: if isOwner(uid)
+                    && request.resource.data.uid == uid
+                    && request.resource.data.phoneNumberVerified == false
+                    && (!('role' in request.resource.data)
+                        || request.resource.data.role == 'customer')
+                    && !('restaurantId' in request.resource.data);
+
+      // Update: owner only; uid, createdAt, role, and restaurantId are
+      // immutable from the client.
+      allow update: if isOwner(uid)
+                    && fieldNotChanged('uid')
+                    && fieldNotChanged('createdAt')
+                    && fieldNotChanged('role')
+                    && fieldNotChanged('restaurantId')
+                    && (
+                         fieldNotChanged('phoneNumberVerified')
+                         || request.resource.data.phoneNumberVerified == false
+                       );
+
+      // Delete: owner only.
+      allow delete: if isOwner(uid);
+
+      // ── users/{uid}/addresses/{addressId} ────────────────────────────────
+      match /addresses/{addressId} {
+
+        allow read:   if isOwner(uid);
+
+        allow create: if isOwner(uid)
+                      && request.resource.data.userId == uid;
+
+        allow update: if isOwner(uid)
+                      && fieldNotChanged('userId');
+
+        allow delete: if isOwner(uid);
+      }
+
+      // ── users/{uid}/favourites/{favouriteId} ─────────────────────────────
+      match /favourites/{favouriteId} {
+
+        allow read:   if isOwner(uid);
+
+        allow create: if isOwner(uid)
+                      && request.resource.data.userId == uid;
+
+        allow update: if isOwner(uid)
+                      && fieldNotChanged('userId');
+
+        allow delete: if isOwner(uid);
+      }
+    }
+
+    // ── phoneIndex/{phoneNumber} ────────────────────────────────────────────
+    match /phoneIndex/{phoneNumber} {
+
+      allow read: if isAuthenticated();
+
+      allow create: if isAuthenticated()
+                    && request.resource.data.uid == request.auth.uid;
+
+      allow update: if isAuthenticated()
+                    && resource.data.uid == request.auth.uid
+                    && request.resource.data.uid == request.auth.uid;
+
+      allow delete: if isAuthenticated()
+                    && resource.data.uid == request.auth.uid;
+    }
+
+    // ── orders/{orderId} ────────────────────────────────────────────────────
+    //
+    // Three parties interact with orders:
+    //
+    //   1. Customers — create their own orders; read their own orders.
+    //
+    //   2. Restaurant owners — read all orders for their restaurant;
+    //      update ONLY the status field on those orders.
+    //
+    //   3. Nobody — delete orders (immutable audit trail).
+    //
+    // Security invariants enforced on every write:
+    //   • customerId must equal the authenticated uid on create.
+    //   • customerPhone, restaurantId, customerId, createdAt are
+    //     immutable after creation.
+    //   • Restaurant owners can ONLY change the status field — all other
+    //     fields are locked via the update rule below.
+    //
+    match /orders/{orderId} {
+
+      // ── Customer: create ─────────────────────────────────────────────────
+      allow create: if isAuthenticated()
+                    && request.resource.data.customerId == request.auth.uid
+                    && request.resource.data.customerPhone is string
+                    && request.resource.data.customerPhone.size() > 0
+                    && request.resource.data.restaurantId is string
+                    && request.resource.data.restaurantId.size() > 0;
+
+      // ── Read: customer sees own orders; owner sees their restaurant's ─────
+      allow read: if isAuthenticated()
+                  && (
+                       // Customer reading their own order.
+                       resource.data.customerId == request.auth.uid
+                       ||
+                       // Restaurant owner reading an order for their restaurant.
+                       ownsRestaurant()
+                     );
+
+      // ── Update: restaurant owner advances order status only ───────────────
+      //
+      // Conditions:
+      //   1. Caller is a restaurant owner.
+      //   2. The order belongs to the owner's restaurant.
+      //   3. Only the 'status' field changes — all other fields are frozen.
+      //
+      // This means customers cannot update orders at all from the client,
+      // and restaurant owners cannot modify customer data, addresses, prices,
+      // or any other sensitive field.
+      allow update: if ownsRestaurant()
+                    && fieldNotChanged('customerId')
+                    && fieldNotChanged('customerPhone')
+                    && fieldNotChanged('restaurantId')
+                    && fieldNotChanged('restaurantName')
+                    && fieldNotChanged('customerName')
+                    && fieldNotChanged('items')
+                    && fieldNotChanged('deliveryAddress')
+                    && fieldNotChanged('subtotal')
+                    && fieldNotChanged('deliveryFee')
+                    && fieldNotChanged('discount')
+                    && fieldNotChanged('total')
+                    && fieldNotChanged('createdAt')
+                    && request.resource.data.status is string
+                    && request.resource.data.status.size() > 0;
+
+      // Delete: nobody (orders are permanent records).
+      // allow delete: if false;  // implied by no matching allow rule.
+    }
+
+    // ── Public read-only collections ────────────────────────────────────────
+
+    // Any authenticated user (customer or owner) can read restaurants.
+    match /restaurants/{docId} {
+      allow read: if isAuthenticated();
+      // Writes to restaurants are admin-only (Firebase Console / Admin SDK).
+      // No client write rules are provided here.
+    }
+
+    match /menu_items/{docId} {
+      allow read: if isAuthenticated();
+
+      // Owners can create items for their own restaurant only.
+      // The restaurantId in the new document must match the owner's profile
+      // restaurantId — never trusted from the client.
+      allow create: if isRestaurantOwner()
+                    && request.resource.data.restaurantId is string
+                    && request.resource.data.restaurantId == ownerRestaurantId();
+
+      // Owners can update their own restaurant's items.
+      // restaurantId is immutable after creation.
+      allow update: if isRestaurantOwner()
+                    && ownsRestaurant()
+                    && fieldNotChanged('restaurantId')
+                    && fieldNotChanged('createdAt');
+
+      // Owners can delete their own restaurant's items.
+      allow delete: if isRestaurantOwner()
+                    && ownsRestaurant();
+    }
+  }
+}

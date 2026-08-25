@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import 'constants.dart';
 import 'models/cart_item.dart';
 import 'pages/home_page.dart';
@@ -12,6 +13,7 @@ import 'pages/all_categories_page.dart';
 import 'pages/all_dishes_page.dart';
 import 'pages/restaurant_page.dart';
 import 'pages/all_restaurants_page.dart';
+import 'providers/user_profile_provider.dart';
 
 class RootShell extends StatefulWidget {
   const RootShell({super.key});
@@ -32,7 +34,9 @@ class _RootShellState extends State<RootShell> {
   String? _seeAllPage;
 
   // ── Delivery address ────────────────────────────────────────────────────────
-  String _deliveryAddress = '123 Main Street';
+  // Starts empty; populated from the user's saved default address once
+  // UserProfileProvider loads. Falls back to a prompt if no address is saved.
+  String _deliveryAddress = '';
 
   // ── Cart state ──────────────────────────────────────────────────────────────
   final List<CartItem> _cartItems = [];
@@ -41,6 +45,21 @@ class _RootShellState extends State<RootShell> {
   double get _cartTotal => _cartItems.fold(0.0, (sum, i) => sum + i.price * i.qty);
 
   // ── Navigation helpers ───────────────────────────────────────────────────────
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    // Keep _deliveryAddress in sync with the user's saved default address.
+    // Only update when the user hasn't manually picked a different address
+    // this session (i.e. _deliveryAddress is still empty = first load).
+    if (_deliveryAddress.isEmpty) {
+      final defaultAddr =
+          context.read<UserProfileProvider>().defaultAddress?.label;
+      if (defaultAddr != null && defaultAddr.isNotEmpty) {
+        _deliveryAddress = defaultAddr;
+      }
+    }
+  }
 
   void _goTo(String page) => setState(() {
         _page = page;
@@ -85,6 +104,7 @@ class _RootShellState extends State<RootShell> {
           restaurant: item['restaurantName'] as String? ??
               item['restaurant'] as String? ??
               'Restaurant',
+          restaurantId: item['restaurantId'] as String? ?? '',
           price: basePrice,
           img: item['img'] as String? ?? '',
           qty: addQty,
@@ -146,6 +166,23 @@ class _RootShellState extends State<RootShell> {
   }
 
   Widget _buildContent() {
+    // Keep delivery address in sync with the user's default saved address
+    // whenever the provider updates (e.g. after the Firestore stream delivers
+    // addresses for the first time, or the user changes their default).
+    // Only auto-fill when the user hasn't manually chosen an address yet.
+    final profileProvider = context.watch<UserProfileProvider>();
+    if (_deliveryAddress.isEmpty) {
+      final defaultAddr = profileProvider.defaultAddress?.label;
+      if (defaultAddr != null && defaultAddr.isNotEmpty) {
+        // Schedule after build to avoid setState-during-build.
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted && _deliveryAddress.isEmpty) {
+            setState(() => _deliveryAddress = defaultAddr);
+          }
+        });
+      }
+    }
+
     // Address picker overlays everything (including the menu detail page).
     if (_showAddressPage) {
       return Scaffold(
@@ -262,7 +299,9 @@ class _RootShellState extends State<RootShell> {
               onViewItem: _openItem,
               onSearchTap: () => _goTo('search'),
               onOpenAddress: _openAddress,
-              deliveryAddress: _deliveryAddress,
+              deliveryAddress: _deliveryAddress.isEmpty
+                  ? 'Set delivery address'
+                  : _deliveryAddress,
               onSeeAllCategories: () => _openSeeAll('categories'),
               onSeeAllDishes: () => _openSeeAll('dishes'),
               onSeeAllRestaurants: () => _openSeeAll('restaurants'),
@@ -275,8 +314,11 @@ class _RootShellState extends State<RootShell> {
               items: _cartItems,
               onUpdate: _updateCartItem,
               onNav: _goTo,
-              deliveryAddress: _deliveryAddress,
+              deliveryAddress: _deliveryAddress.isEmpty
+                  ? 'Set delivery address'
+                  : _deliveryAddress,
               onChangeAddress: _openAddress,
+              onClearCart: () => setState(() => _cartItems.clear()),
             ),
           ],
         ),

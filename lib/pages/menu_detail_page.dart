@@ -101,13 +101,12 @@ class _MenuDetailPageState extends State<MenuDetailPage> {
         : all.where((i) => i['category'] == category).toList();
 
     // 3. Fall back / top up with same-restaurant items
-    final restaurant = item['restaurantName'] as String? ?? item['restaurant'] as String?;
+    final rid = item['restaurantId'] as String?;
     final result = List<Map<String, dynamic>>.from(byCategory);
-    if (restaurant != null) {
+    if (rid != null) {
       for (final candidate in all) {
         if (result.length >= 2) break;
-        final r = candidate['restaurantName'] as String? ?? candidate['restaurant'] as String?;
-        if (r == restaurant && !result.contains(candidate)) {
+        if (candidate['restaurantId'] == rid && !result.contains(candidate)) {
           result.add(candidate);
         }
       }
@@ -354,20 +353,17 @@ class _MenuDetailPageState extends State<MenuDetailPage> {
   String _restaurantImg(Map<String, dynamic> item) {
     final explicit = item['restaurantImg'] as String?;
     if (explicit != null && explicit.isNotEmpty) return explicit;
-    final restaurantName =
-        item['restaurantName'] as String? ?? item['restaurant'] as String?;
-    final restaurant = context.read<MenuProvider>().restaurantByName(restaurantName);
+    final rid = item['restaurantId'] as String?;
+    final restaurant = context.read<MenuProvider>().restaurantById(rid);
     final restImg = restaurant?['img'] as String?;
     if (restImg != null && restImg.isNotEmpty) return restImg;
     return '';
   }
 
   Widget _buildRestaurantRow(Map<String, dynamic> item) {
-    final restaurantName =
-        item['restaurantName'] as String? ?? item['restaurant'] as String?;
-    final restaurant =
-        context.read<MenuProvider>().restaurantByName(restaurantName);
-    final restaurantId = restaurant?['id'] as String?;
+    final rid = item['restaurantId'] as String?;
+    final restaurant = context.read<MenuProvider>().restaurantById(rid);
+    final restaurantId = rid ?? restaurant?['id'] as String?;
 
     final row = Container(
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
@@ -389,7 +385,7 @@ class _MenuDetailPageState extends State<MenuDetailPage> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(item['restaurantName'] as String? ?? item['restaurant'] as String? ?? 'Restaurant',
+                Text(restaurant?['name'] as String? ?? item['restaurantName'] as String? ?? 'Restaurant',
                     style: const TextStyle(color: kInk, fontWeight: FontWeight.w700, fontSize: 14)),
                 const SizedBox(height: 2),
                 const Text('Open now · Free delivery', style: TextStyle(color: kGreen, fontSize: 12, fontWeight: FontWeight.w600)),

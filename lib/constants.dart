@@ -55,172 +55,71 @@ String formatPeso(num? amount) => '₱${(amount ?? 0).toStringAsFixed(2)}';
 
 // ── Data ──────────────────────────────────────────────────────────────────────
 
-const List<Map<String, Object>> kCategories = [
-  {'label': 'All', 'icon': Icons.restaurant},
-  {'label': 'Burgers', 'icon': Icons.lunch_dining},
-  {'label': 'Pizza', 'icon': Icons.local_pizza},
-  {'label': 'Sushi', 'icon': Icons.set_meal},
-  {'label': 'Pasta', 'icon': Icons.ramen_dining},
-  {'label': 'Tacos', 'icon': Icons.tapas},
-];
+// Category icon lookup — used by home_page.dart and all_categories_page.dart
+// to map a category label coming from Firestore to a Material icon.
+// Add entries here as new Firestore categories are introduced.
+const Map<String, IconData> kCategoryIcons = {
+  'All':         Icons.restaurant,
+  'Burgers':     Icons.lunch_dining,
+  'Pizza':       Icons.local_pizza,
+  'Sushi':       Icons.set_meal,
+  'Pasta':       Icons.ramen_dining,
+  'Tacos':       Icons.tapas,
+  'Salads':      Icons.eco,
+  'Desserts':    Icons.icecream,
+  'Drinks':      Icons.local_cafe,
+  'Breakfast':   Icons.egg_alt,
+  'Sandwiches':  Icons.lunch_dining,
+  'Noodles':     Icons.ramen_dining,
+  'Chicken':     Icons.set_meal,
+  'Seafood':     Icons.set_meal,
+  'Vegan':       Icons.eco,
+  'BBQ':         Icons.outdoor_grill,
+  'Indian':      Icons.restaurant,
+  'Mains':       Icons.dinner_dining,
+};
 
-const List<Map<String, Object>> kFeatured = [
-  {
-    'id': 1,
-    'name': 'Double Smash Burger',
-    'restaurant': 'The Patty Lab',
-    'price': 149.0,
-    'rating': 4.9,
-    'time': '18–25 min',
-    'img':
-        'https://images.unsplash.com/photo-1568901346375-23c9450c58cd?w=400&h=320&fit=crop&auto=format',
-    'tag': 'Best Seller',
-    'tagColor': 0xFFFF4D1C,
-  },
-  {
-    'id': 2,
-    'name': 'Neapolitan Margherita',
-    'restaurant': 'Forno Vivo',
-    'price': 185.0,
-    'rating': 4.8,
-    'time': '22–32 min',
-    'img':
-        'https://images.unsplash.com/photo-1566843972142-a7fcb70de55a?w=400&h=320&fit=crop&auto=format',
-    'tag': 'Popular',
-    'tagColor': 0xFFF5C842,
-  },
-];
+// Category color lookup — used by all_categories_page.dart tiles.
+const Map<String, int> kCategoryColors = {
+  'All':         0xFFFF4D1C,
+  'Burgers':     0xFFFF6B35,
+  'Pizza':       0xFFE63946,
+  'Sushi':       0xFF2D6A4F,
+  'Pasta':       0xFFF4A261,
+  'Tacos':       0xFFE9C46A,
+  'Salads':      0xFF52B788,
+  'Desserts':    0xFFC77DFF,
+  'Drinks':      0xFF4CC9F0,
+  'Breakfast':   0xFFF3722C,
+  'Sandwiches':  0xFF90BE6D,
+  'Noodles':     0xFFF8961E,
+  'Chicken':     0xFFFF4D1C,
+  'Seafood':     0xFF277DA1,
+  'Vegan':       0xFF4CAF82,
+  'BBQ':         0xFFBC4749,
+  'Indian':      0xFFF9844A,
+  'Mains':       0xFF4CC9F0,
+};
 
-const List<Map<String, Object>> kNearby = [
-  {
-    'id': 1,
-    'name': 'The Patty Lab',
-    'cuisine': 'American · Burgers',
-    'rating': 4.9,
-    'time': '18 min',
-    'fee': 'Free',
-    'img':
-        'https://images.unsplash.com/photo-1572802419224-296b0aeee0d9?w=120&h=120&fit=crop&auto=format',
-  },
-  {
-    'id': 2,
-    'name': 'Forno Vivo',
-    'cuisine': 'Italian · Pizza',
-    'rating': 4.8,
-    'time': '24 min',
-    'fee': '₱79.00',
-    'img':
-        'https://images.unsplash.com/photo-1715494534168-2ce3196e6d67?w=120&h=120&fit=crop&auto=format',
-  },
-  {
-    'id': 3,
-    'name': 'Umami House',
-    'cuisine': 'Japanese · Sushi',
-    'rating': 4.7,
-    'time': '28 min',
-    'fee': '₱49.00',
-    'img':
-        'https://images.unsplash.com/photo-1676037150294-837ff0c29599?w=120&h=120&fit=crop&auto=format',
-  },
-  {
-    'id': 4,
-    'name': 'Trattoria Roma',
-    'cuisine': 'Italian · Pasta',
-    'rating': 4.6,
-    'time': '32 min',
-    'fee': 'Free',
-    'img':
-        'https://images.unsplash.com/photo-1516100882582-96c3a05fe590?w=120&h=120&fit=crop&auto=format',
-  },
-];
+// Category emoji lookup — used by all_categories_page.dart tiles.
+const Map<String, String> kCategoryEmojis = {
+  'All':         '🍽️',
+  'Burgers':     '🍔',
+  'Pizza':       '🍕',
+  'Sushi':       '🍣',
+  'Pasta':       '🍝',
+  'Tacos':       '🌮',
+  'Salads':      '🥗',
+  'Desserts':    '🍰',
+  'Drinks':      '🧃',
+  'Breakfast':   '🍳',
+  'Sandwiches':  '🥪',
+  'Noodles':     '🍜',
+  'Chicken':     '🍗',
+  'Seafood':     '🦞',
+  'Vegan':       '🌱',
+  'BBQ':         '🍖',
+  'Indian':      '🍛',
+  'Mains':       '🥘',
+};
 
-const List<Map<String, Object>> kSearchSuggestions = [
-  {'label': 'Burgers', 'icon': Icons.lunch_dining},
-  {'label': 'Pizza', 'icon': Icons.local_pizza},
-  {'label': 'Sushi', 'icon': Icons.set_meal},
-  {'label': 'Tacos', 'icon': Icons.tapas},
-  {'label': 'Desserts', 'icon': Icons.icecream},
-  {'label': 'Salads', 'icon': Icons.eco},
-];
-
-const List<Map<String, Object>> kAllItems = [
-  {
-    'id': 1,
-    'name': 'Double Smash Burger',
-    'restaurant': 'The Patty Lab',
-    'price': 149.0,
-    'rating': 4.9,
-    'img':
-        'https://images.unsplash.com/photo-1568901346375-23c9450c58cd?w=120&h=120&fit=crop&auto=format',
-  },
-  {
-    'id': 2,
-    'name': 'Neapolitan Margherita',
-    'restaurant': 'Forno Vivo',
-    'price': 185.0,
-    'rating': 4.8,
-    'img':
-        'https://images.unsplash.com/photo-1566843972142-a7fcb70de55a?w=120&h=120&fit=crop&auto=format',
-  },
-  {
-    'id': 3,
-    'name': 'Chirashi Don Bowl',
-    'restaurant': 'Umami House',
-    'price': 220.0,
-    'rating': 4.7,
-    'img':
-        'https://images.unsplash.com/photo-1676037150294-837ff0c29599?w=120&h=120&fit=crop&auto=format',
-  },
-  {
-    'id': 4,
-    'name': 'Cacio e Pepe',
-    'restaurant': 'Trattoria Roma',
-    'price': 168.0,
-    'rating': 4.6,
-    'img':
-        'https://images.unsplash.com/photo-1516100882582-96c3a05fe590?w=120&h=120&fit=crop&auto=format',
-  },
-];
-
-const List<Map<String, Object>> kOrders = [
-  {
-    'id': '#SW-4821',
-    'restaurant': 'The Patty Lab',
-    'items': ['Double Smash Burger ×1', 'Cola ×2'],
-    'total': 218.0,
-    'status': 'Delivered',
-    'date': 'Jul 28, 2026',
-    'img':
-        'https://images.unsplash.com/photo-1568901346375-23c9450c58cd?w=120&h=120&fit=crop&auto=format',
-  },
-  {
-    'id': '#SW-4790',
-    'restaurant': 'Forno Vivo',
-    'items': ['Neapolitan Margherita ×1'],
-    'total': 185.0,
-    'status': 'Delivered',
-    'date': 'Jul 22, 2026',
-    'img':
-        'https://images.unsplash.com/photo-1566843972142-a7fcb70de55a?w=120&h=120&fit=crop&auto=format',
-  },
-  {
-    'id': '#SW-4763',
-    'restaurant': 'Umami House',
-    'items': ['Chirashi Don ×2', 'Miso Soup ×2'],
-    'total': 510.0,
-    'status': 'Cancelled',
-    'date': 'Jul 15, 2026',
-    'img':
-        'https://images.unsplash.com/photo-1676037150294-837ff0c29599?w=120&h=120&fit=crop&auto=format',
-  },
-  {
-    'id': '#SW-4701',
-    'restaurant': 'Trattoria Roma',
-    'items': ['Cacio e Pepe ×1', 'Tiramisu ×1'],
-    'total': 243.0,
-    'status': 'Delivered',
-    'date': 'Jul 3, 2026',
-    'img':
-        'https://images.unsplash.com/photo-1516100882582-96c3a05fe590?w=120&h=120&fit=crop&auto=format',
-  },
-];

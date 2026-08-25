@@ -17,7 +17,7 @@ class _HelpPageState extends State<HelpPage> {
   static const _faqs = [
     {
       'q': 'How do I track my order?',
-      'a': "Go to the Orders tab and tap 'Track live' on your active order. You'll see a real-time map with your rider's location.",
+      'a': "Open the Orders tab to see the current status of your active order. The status updates automatically as your order is confirmed, prepared, and on its way.",
     },
     {
       'q': 'Can I change my order after placing it?',

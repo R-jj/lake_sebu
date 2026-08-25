@@ -253,6 +253,17 @@ class _HomePageState extends State<HomePage> {
   }
 
   Widget _buildCategories() {
+    final menuProvider = context.read<MenuProvider>();
+    // Build category list dynamically: 'All' first, then unique values from
+    // Firestore menu_items sorted alphabetically.
+    final dynamic = menuProvider.allItems
+        .map((item) => item['category'] as String? ?? '')
+        .where((c) => c.isNotEmpty)
+        .toSet()
+        .toList()
+      ..sort();
+    final categories = ['All', ...dynamic];
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -272,44 +283,46 @@ class _HomePageState extends State<HomePage> {
         const SizedBox(height: 14),
         SizedBox(
           height: 44,
-          child: ListView.separated(
-            scrollDirection: Axis.horizontal,
-            padding: const EdgeInsets.symmetric(horizontal: 20),
-            physics: const BouncingScrollPhysics(),
-            itemCount: kCategories.length,
-            separatorBuilder: (_, __) => const SizedBox(width: 10),
-            itemBuilder: (context, i) {
-              final cat = kCategories[i];
-              final label = cat['label'] as String;
-              final isActive = _activeCategory == label;
-              return GestureDetector(
-                onTap: () => setState(() => _activeCategory = label),
-                child: AnimatedContainer(
-                  duration: const Duration(milliseconds: 150),
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                  decoration: BoxDecoration(
-                    color: isActive ? kBrand : kSurface,
-                    border: Border.all(color: isActive ? kBrand : kBorder),
-                    borderRadius: BorderRadius.circular(100),
-                  ),
-                  child: Row(
-                    children: [
-                      Icon(cat['icon'] as IconData, size: 16, color: isActive ? Colors.white : kMuted),
-                      const SizedBox(width: 6),
-                      Text(
-                        label,
-                        style: TextStyle(
-                          color: isActive ? Colors.white : kMuted,
-                          fontSize: 13,
-                          fontWeight: FontWeight.w600,
+          child: menuProvider.isLoading
+              ? const SizedBox.shrink()
+              : ListView.separated(
+                  scrollDirection: Axis.horizontal,
+                  padding: const EdgeInsets.symmetric(horizontal: 20),
+                  physics: const BouncingScrollPhysics(),
+                  itemCount: categories.length,
+                  separatorBuilder: (_, __) => const SizedBox(width: 10),
+                  itemBuilder: (context, i) {
+                    final label = categories[i];
+                    final isActive = _activeCategory == label;
+                    final icon = kCategoryIcons[label] ?? Icons.restaurant;
+                    return GestureDetector(
+                      onTap: () => setState(() => _activeCategory = label),
+                      child: AnimatedContainer(
+                        duration: const Duration(milliseconds: 150),
+                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                        decoration: BoxDecoration(
+                          color: isActive ? kBrand : kSurface,
+                          border: Border.all(color: isActive ? kBrand : kBorder),
+                          borderRadius: BorderRadius.circular(100),
+                        ),
+                        child: Row(
+                          children: [
+                            Icon(icon, size: 16, color: isActive ? Colors.white : kMuted),
+                            const SizedBox(width: 6),
+                            Text(
+                              label,
+                              style: TextStyle(
+                                color: isActive ? Colors.white : kMuted,
+                                fontSize: 13,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ],
                         ),
                       ),
-                    ],
-                  ),
+                    );
+                  },
                 ),
-              );
-            },
-          ),
         ),
       ],
     );

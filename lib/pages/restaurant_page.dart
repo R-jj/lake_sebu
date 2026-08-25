@@ -98,14 +98,11 @@ class _RestaurantPageState extends State<RestaurantPage> {
       );
     }
 
-    // All menu items belonging to this restaurant, matched by name.
+    // All menu items belonging to this restaurant, matched by restaurantId.
     final restaurantName = restaurant['name'] as String? ?? '';
     final allMenu = provider.allItems
         .where((item) =>
-            (item['restaurantName'] as String? ??
-                item['restaurant'] as String? ??
-                '') ==
-            restaurantName)
+            (item['restaurantId'] as String? ?? '') == widget.restaurantId)
         .toList();
 
     // Build dynamic category list from menu items.

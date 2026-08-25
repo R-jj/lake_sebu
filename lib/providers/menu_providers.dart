@@ -38,8 +38,16 @@ class MenuProvider extends ChangeNotifier {
     return null;
   }
 
-  /// Finds a restaurant by its name (used to resolve the restaurant's own
-  /// logo/photo for the menu detail page).
+  /// Finds a restaurant by its Firestore document ID.
+  Map<String, dynamic>? restaurantById(String? id) {
+    if (id == null) return null;
+    for (final r in _restaurants) {
+      if ('${r['id']}' == id) return r;
+    }
+    return null;
+  }
+
+  /// Finds a restaurant by its name (kept for legacy callers).
   Map<String, dynamic>? restaurantByName(String? name) {
     if (name == null) return null;
     for (final r in _restaurants) {

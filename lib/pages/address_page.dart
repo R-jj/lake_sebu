@@ -1,23 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
+import 'package:provider/provider.dart';
 import '../constants.dart';
 import '../models/address.dart';
+import '../providers/auth_provider.dart';
+import '../providers/user_profile_provider.dart';
 import 'map_picker_page.dart';
-
-// ── Static seed data ──────────────────────────────────────────────────────────
-
-final List<Address> _kSavedAddresses = [
-  Address(id: 1, label: 'Home', line1: '123 Main Street', line2: 'Apt 4B, New York, NY 10001', icon: '🏠', isDefault: true),
-  Address(id: 2, label: 'Work', line1: '350 Fifth Avenue', line2: 'Floor 12, New York, NY 10118', icon: '💼'),
-  Address(id: 3, label: 'Gym', line1: '30 Rockefeller Plaza', line2: 'New York, NY 10112', icon: '💪'),
-];
-
-const _kNearbyPlaces = [
-  {'id': 'n1', 'icon': '🏪', 'name': 'Central Park South', 'sub': '59th St & 5th Ave, New York'},
-  {'id': 'n2', 'icon': '🏨', 'name': 'The Plaza Hotel', 'sub': '768 5th Ave, New York, NY 10019'},
-  {'id': 'n3', 'icon': '🏬', 'name': 'Grand Central Terminal', 'sub': '89 E 42nd St, New York, NY 10017'},
-  {'id': 'n4', 'icon': '🎭', 'name': 'Times Square', 'sub': 'Manhattan, New York, NY 10036'},
-];
 
 // ── Page ──────────────────────────────────────────────────────────────────────
 
@@ -57,15 +45,15 @@ class _AddressPageState extends State<AddressPage> {
   double? _newLat;
   double? _newLng;
 
-  // Which id is currently selected (int for saved, String for nearby)
-  late Object _selectedId;
+  // Which id is currently selected (String for both saved and nearby)
+  late String _selectedId;
 
   @override
   void initState() {
     super.initState();
-    _addresses = List<Address>.from(_kSavedAddresses);
-    final match = _addresses.where((a) => a.line1 == widget.current);
-    _selectedId = match.isNotEmpty ? match.first.id : _addresses.first.id;
+    // _addresses is seeded from UserProfileProvider in build().
+    _addresses = [];
+    _selectedId = '';
   }
 
   @override
@@ -79,37 +67,90 @@ class _AddressPageState extends State<AddressPage> {
 
   // ── Helpers ──────────────────────────────────────────────────────────────
 
-  void _handleSelect(Object id, String line1) {
+  /// Syncs the local address list from the provider and ensures a valid
+  /// selection whenever the provider's data changes.
+  void _syncAddresses(List<Address> providerAddresses) {
+    _addresses = providerAddresses;
+    if (_selectedId.isEmpty && _addresses.isNotEmpty) {
+      // Try to match the current delivery address string.
+      final match =
+          _addresses.where((a) => a.line1 == widget.current);
+      _selectedId = match.isNotEmpty
+          ? match.first.id
+          : (_addresses.firstWhere((a) => a.isDefault,
+                  orElse: () => _addresses.first))
+              .id;
+    }
+  }
+
+  void _handleSelect(String id, String line1) {
     setState(() => _selectedId = id);
     widget.onSelect(line1);
   }
 
-  void _setDefault(int id) =>
-      setState(() => _addresses = _addresses.map((a) => a.copyWith(isDefault: a.id == id)).toList());
-
-  void _delete(int id) {
-    setState(() {
-      _addresses = _addresses.where((a) => a.id != id).toList();
-      if (_selectedId == id && _addresses.isNotEmpty) {
-        _selectedId = _addresses.first.id;
-        widget.onSelect(_addresses.first.line1);
-      }
-    });
+  void _setDefault(String id) async {
+    await context.read<UserProfileProvider>().setDefaultAddress(id);
   }
 
-  void _handleAddNew() {
+  void _delete(String id) async {
+    final err = await context
+        .read<UserProfileProvider>()
+        .deleteAddress(id);
+    if (err != null && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text(err),
+        backgroundColor: kRed,
+        behavior: SnackBarBehavior.floating,
+      ));
+      return;
+    }
+    if (_selectedId == id && _addresses.isNotEmpty) {
+      final remaining =
+          _addresses.where((a) => a.id != id).toList();
+      if (remaining.isNotEmpty) {
+        setState(() => _selectedId = remaining.first.id);
+        widget.onSelect(remaining.first.line1);
+      }
+    }
+  }
+
+  void _handleAddNew() async {
     if (_line1Ctrl.text.trim().isEmpty) return;
-    final next = Address(
-      id: DateTime.now().millisecondsSinceEpoch,
-      label: _labelCtrl.text.trim().isEmpty ? 'Custom' : _labelCtrl.text.trim(),
+    final uid =
+        context.read<AppAuthProvider>().user!.uid;
+    final provider = context.read<UserProfileProvider>();
+
+    final addr = Address(
+      id: '',
+      userId: uid,
+      label: _labelCtrl.text.trim().isEmpty
+          ? 'Custom'
+          : _labelCtrl.text.trim(),
+      icon: '📍',
       line1: _line1Ctrl.text.trim(),
       line2: _line2Ctrl.text.trim(),
-      icon: '📍',
+      barangay: '',
+      municipality: '',
+      province: '',
+      postalCode: '',
+      country: 'Philippines',
+      isDefault: provider.addresses.isEmpty,
       lat: _newLat,
       lng: _newLng,
     );
+
+    final err = await provider.addAddress(addr);
+    if (!mounted) return;
+    if (err != null) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text(err),
+        backgroundColor: kRed,
+        behavior: SnackBarBehavior.floating,
+      ));
+      return;
+    }
+
     setState(() {
-      _addresses = [..._addresses, next];
       _showAddForm = false;
       _labelCtrl.clear();
       _line1Ctrl.clear();
@@ -117,7 +158,8 @@ class _AddressPageState extends State<AddressPage> {
       _newLat = null;
       _newLng = null;
     });
-    _handleSelect(next.id, next.line1);
+    // The stream will update _addresses via the provider.
+    widget.onSelect(addr.line1);
   }
 
   /// Opens MapPickerPage. If [initialLatLng] is provided the map starts there.
@@ -150,19 +192,46 @@ class _AddressPageState extends State<AddressPage> {
     );
     if (result == null || !mounted) return;
 
-    // Build an address from the result and select it immediately.
-    final next = Address(
-      id: DateTime.now().millisecondsSinceEpoch,
+    final uid = context.read<AppAuthProvider>().user!.uid;
+    final provider = context.read<UserProfileProvider>();
+
+    final addr = Address(
+      id: '',
+      userId: uid,
       label: 'Current Location',
-      line1: result.address,
-      line2: '${result.lat.toStringAsFixed(5)}, ${result.lng.toStringAsFixed(5)}',
       icon: '📍',
+      line1: result.address,
+      line2: '',
+      barangay: '',
+      municipality: '',
+      province: '',
+      postalCode: '',
+      country: 'Philippines',
+      isDefault: provider.addresses.isEmpty,
       lat: result.lat,
       lng: result.lng,
     );
-    setState(() => _addresses = [..._addresses, next]);
-    _handleSelect(next.id, next.line1);
+    final err = await provider.addAddress(addr);
+    if (!mounted) return;
+    if (err != null) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text(err),
+        backgroundColor: kRed,
+        behavior: SnackBarBehavior.floating,
+      ));
+      return;
+    }
+    // The stream updates _addresses; just select by line1.
+    setState(() {});
+    widget.onSelect(addr.line1);
   }
+
+  static const _kNearbyPlaces = [
+    {'id': 'n1', 'icon': '🏪', 'name': 'Poblacion', 'sub': 'Town centre area'},
+    {'id': 'n2', 'icon': '🏨', 'name': 'City Hall', 'sub': 'Municipal / city government building'},
+    {'id': 'n3', 'icon': '🏬', 'name': 'Public Market', 'sub': 'Central public market'},
+    {'id': 'n4', 'icon': '🏫', 'name': 'National Highway', 'sub': 'Main road / highway'},
+  ];
 
   List<Map<String, dynamic>> get _filteredNearby {
     final q = _searchQuery.toLowerCase();
@@ -178,6 +247,11 @@ class _AddressPageState extends State<AddressPage> {
 
   @override
   Widget build(BuildContext context) {
+    // Sync address list from provider every build.
+    final providerAddresses =
+        context.watch<UserProfileProvider>().addresses;
+    _syncAddresses(providerAddresses);
+
     return Column(
       children: [
         _buildHeader(),
@@ -334,12 +408,20 @@ class _AddressPageState extends State<AddressPage> {
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
             const Text('SAVED ADDRESSES',
-                style: TextStyle(color: kMuted, fontSize: 11, fontWeight: FontWeight.w700, letterSpacing: 1)),
+                style: TextStyle(
+                    color: kMuted,
+                    fontSize: 11,
+                    fontWeight: FontWeight.w700,
+                    letterSpacing: 1)),
             GestureDetector(
-              onTap: () => setState(() => _showAddForm = !_showAddForm),
+              onTap: () => setState(
+                  () => _showAddForm = !_showAddForm),
               child: Text(
                 _showAddForm ? 'Cancel' : '+ Add new',
-                style: const TextStyle(color: kBrand, fontSize: 13, fontWeight: FontWeight.w700),
+                style: const TextStyle(
+                    color: kBrand,
+                    fontSize: 13,
+                    fontWeight: FontWeight.w700),
               ),
             ),
           ],
@@ -349,6 +431,13 @@ class _AddressPageState extends State<AddressPage> {
           _buildAddForm(),
         ],
         const SizedBox(height: 12),
+        if (_addresses.isEmpty)
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 8),
+            child: Text('No saved addresses yet.',
+                style: const TextStyle(
+                    color: kMuted, fontSize: 13)),
+          ),
         ..._addresses.map((addr) => Padding(
               padding: const EdgeInsets.only(bottom: 10),
               child: _AddressCard(
@@ -680,7 +769,7 @@ class _AddressCard extends StatelessWidget {
                               color: kInk, fontSize: 13, fontWeight: FontWeight.w600),
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis),
-                      Text(addr.line2,
+                      Text(addr.shortLine,
                           style: const TextStyle(color: kMuted, fontSize: 12),
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis),

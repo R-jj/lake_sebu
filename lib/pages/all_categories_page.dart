@@ -1,27 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import '../constants.dart';
+import '../providers/menu_providers.dart';
 import '_sub_page_shell.dart';
-
-// ── Static data ───────────────────────────────────────────────────────────────
-
-const _kAllCategories = [
-  {'label': 'Burgers', 'emoji': '🍔', 'count': 48, 'color': 0xFFFF6B35},
-  {'label': 'Pizza', 'emoji': '🍕', 'count': 63, 'color': 0xFFE63946},
-  {'label': 'Sushi', 'emoji': '🍣', 'count': 29, 'color': 0xFF2D6A4F},
-  {'label': 'Pasta', 'emoji': '🍝', 'count': 34, 'color': 0xFFF4A261},
-  {'label': 'Tacos', 'emoji': '🌮', 'count': 22, 'color': 0xFFE9C46A},
-  {'label': 'Salads', 'emoji': '🥗', 'count': 41, 'color': 0xFF52B788},
-  {'label': 'Desserts', 'emoji': '🍰', 'count': 55, 'color': 0xFFC77DFF},
-  {'label': 'Drinks', 'emoji': '🧃', 'count': 17, 'color': 0xFF4CC9F0},
-  {'label': 'Breakfast', 'emoji': '🍳', 'count': 38, 'color': 0xFFF3722C},
-  {'label': 'Sandwiches', 'emoji': '🥪', 'count': 26, 'color': 0xFF90BE6D},
-  {'label': 'Noodles', 'emoji': '🍜', 'count': 19, 'color': 0xFFF8961E},
-  {'label': 'Chicken', 'emoji': '🍗', 'count': 45, 'color': 0xFFFF4D1C},
-  {'label': 'Seafood', 'emoji': '🦞', 'count': 14, 'color': 0xFF277DA1},
-  {'label': 'Vegan', 'emoji': '🌱', 'count': 31, 'color': 0xFF4CAF82},
-  {'label': 'BBQ', 'emoji': '🍖', 'count': 20, 'color': 0xFFBC4749},
-  {'label': 'Indian', 'emoji': '🍛', 'count': 24, 'color': 0xFFF9844A},
-];
 
 // ── Page ──────────────────────────────────────────────────────────────────────
 
@@ -51,21 +32,43 @@ class _AllCategoriesPageState extends State<AllCategoriesPage> {
     super.dispose();
   }
 
-  List<Map<String, dynamic>> get _filtered {
-    final q = _search.toLowerCase();
-    return _kAllCategories
-        .where((c) => (c['label'] as String).toLowerCase().contains(q))
-        .map((c) => Map<String, dynamic>.from(c))
-        .toList();
+  /// Builds the category list from live Firestore data.
+  /// Each entry has: label, emoji, color (int), count (real item count).
+  List<Map<String, dynamic>> _buildCategories(List<Map<String, dynamic>> allItems) {
+    // Count items per category.
+    final counts = <String, int>{};
+    for (final item in allItems) {
+      final cat = item['category'] as String? ?? '';
+      if (cat.isNotEmpty) {
+        counts[cat] = (counts[cat] ?? 0) + 1;
+      }
+    }
+
+    // Build sorted list using the lookup maps for emoji and color.
+    final categories = counts.keys.toList()..sort();
+    return categories.map((label) => {
+      'label': label,
+      'emoji': kCategoryEmojis[label] ?? '🍽️',
+      'color': kCategoryColors[label] ?? 0xFFFF4D1C,
+      'count': counts[label] ?? 0,
+    }).toList();
   }
 
   @override
   Widget build(BuildContext context) {
-    final filtered = _filtered;
+    final menuProvider = context.watch<MenuProvider>();
+    final allCategories = _buildCategories(menuProvider.allItems);
+
+    final q = _search.toLowerCase();
+    final filtered = allCategories
+        .where((c) => (c['label'] as String).toLowerCase().contains(q))
+        .toList();
 
     return SubPageShell(
       title: 'All categories',
-      subtitle: '${_kAllCategories.length} categories available',
+      subtitle: menuProvider.isLoading
+          ? 'Loading...'
+          : '${allCategories.length} categories available',
       onBack: widget.onBack,
       child: Column(
         children: [
@@ -113,26 +116,30 @@ class _AllCategoriesPageState extends State<AllCategoriesPage> {
 
           // Grid
           Expanded(
-            child: filtered.isEmpty
-                ? _buildEmpty()
-                : GridView.builder(
-                    padding: const EdgeInsets.fromLTRB(20, 0, 20, 28),
-                    physics: const BouncingScrollPhysics(),
-                    gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                      crossAxisCount: 2,
-                      crossAxisSpacing: 12,
-                      mainAxisSpacing: 12,
-                      childAspectRatio: 1.55,
-                    ),
-                    itemCount: filtered.length,
-                    itemBuilder: (context, i) => _CategoryTile(
-                      data: filtered[i],
-                      onTap: () {
-                        widget.onSelectCategory(filtered[i]['label'] as String);
-                        widget.onBack();
-                      },
-                    ),
-                  ),
+            child: menuProvider.isLoading
+                ? const Center(
+                    child: CircularProgressIndicator(color: kBrand, strokeWidth: 2),
+                  )
+                : filtered.isEmpty
+                    ? _buildEmpty()
+                    : GridView.builder(
+                        padding: const EdgeInsets.fromLTRB(20, 0, 20, 28),
+                        physics: const BouncingScrollPhysics(),
+                        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                          crossAxisCount: 2,
+                          crossAxisSpacing: 12,
+                          mainAxisSpacing: 12,
+                          childAspectRatio: 1.55,
+                        ),
+                        itemCount: filtered.length,
+                        itemBuilder: (context, i) => _CategoryTile(
+                          data: filtered[i],
+                          onTap: () {
+                            widget.onSelectCategory(filtered[i]['label'] as String);
+                            widget.onBack();
+                          },
+                        ),
+                      ),
           ),
         ],
       ),

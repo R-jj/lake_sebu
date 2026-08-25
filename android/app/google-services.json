@@ -12,7 +12,20 @@
           "package_name": "com.example.lake_sebu"
         }
       },
-      "oauth_client": [],
+      "oauth_client": [
+        {
+          "client_id": "206011392773-j1blve25b4828rul09iqtsb9p343nin8.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.example.lake_sebu",
+            "certificate_hash": "63cea21f2ec0e6b3e5e17c9e961447abf90757e7"
+          }
+        },
+        {
+          "client_id": "206011392773-pntcapecc5qdlijuc1t1a6ubr4ic2ov2.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
       "api_key": [
         {
           "current_key": "AIzaSyCAOF8e2qDIx9ViA0pgq9DjplY_SmGiDXA"
@@ -20,7 +33,19 @@
       ],
       "services": {
         "appinvite_service": {
-          "other_platform_oauth_client": []
+          "other_platform_oauth_client": [
+            {
+              "client_id": "206011392773-pntcapecc5qdlijuc1t1a6ubr4ic2ov2.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "206011392773-2bcqnvifdk5c3sfuvioc8ofroppvrmi6.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.example.lakeSebu"
+              }
+            }
+          ]
         }
       }
     }
