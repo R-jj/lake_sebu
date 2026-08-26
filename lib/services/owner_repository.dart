@@ -80,6 +80,59 @@ class OwnerRepository {
     await _userRepo.updateOrderStatus(orderId, status);
   }
 
+  // ── Restaurant writes ─────────────────────────────────────────────────────
+
+  /// Creates a new restaurant document and returns the auto-generated ID.
+  ///
+  /// Adds `createdAt: FieldValue.serverTimestamp()` to [fields] before writing.
+  /// Throws [StateError] when no user is authenticated.
+  /// Propagates any Firestore exception to the caller.
+  Future<String> createRestaurant(Map<String, dynamic> fields) async {
+    final _ = _uid; // throws StateError if unauthenticated
+    final data = {
+      ...fields,
+      'createdAt': FieldValue.serverTimestamp(),
+    };
+    final ref = await _db.collection('restaurants').add(data);
+    return ref.id;
+  }
+
+  /// Updates [changedFields] on the existing restaurant document.
+  ///
+  /// Adds `updatedAt: FieldValue.serverTimestamp()` to the payload.
+  /// Throws [StateError] when no user is authenticated.
+  /// Throws [Exception] when no document exists for [restaurantId].
+  /// Propagates any other Firestore exception to the caller.
+  Future<void> updateRestaurant(
+    String restaurantId,
+    Map<String, dynamic> changedFields,
+  ) async {
+    final _ = _uid;
+    final ref = _db.collection('restaurants').doc(restaurantId);
+    final snap = await ref.get();
+    if (!snap.exists) {
+      throw Exception(
+          'OwnerRepository.updateRestaurant: document $restaurantId not found.');
+    }
+    await ref.update({
+      ...changedFields,
+      'updatedAt': FieldValue.serverTimestamp(),
+    });
+  }
+
+  /// Writes [restaurantId] to the `restaurantId` field on the owner's
+  /// profile document (`users/{uid}`).
+  ///
+  /// Throws [StateError] when no user is authenticated.
+  /// Propagates any Firestore exception to the caller.
+  Future<void> linkRestaurantToOwner(String restaurantId) async {
+    final uid = _uid;
+    await _db.collection('users').doc(uid).update({
+      'restaurantId': restaurantId,
+      'updatedAt': FieldValue.serverTimestamp(),
+    });
+  }
+
   // ── Dashboard stats ───────────────────────────────────────────────────────
 
   /// One-shot fetch of order counts for [restaurantId].

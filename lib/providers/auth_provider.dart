@@ -107,6 +107,13 @@ class AppAuthProvider extends ChangeNotifier {
     }
   }
 
+  /// Called after a successful restaurant creation to update the in-memory
+  /// restaurantId without requiring a full sign-out / sign-in cycle.
+  void updateRestaurantId(String id) {
+    _restaurantId = id;
+    notifyListeners();
+  }
+
   /// Called by [UserProfileProvider] after the user completes profile setup
   /// (phone verified) so the gate refreshes without a full sign-out/in cycle.
   void markProfileComplete() {
