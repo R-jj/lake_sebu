@@ -47,6 +47,13 @@ class _AddressPageState extends State<AddressPage> {
   double? _newLat;
   double? _newLng;
 
+  // Structured components from the last map pin — the add-form only exposes
+  // line1/line2 text fields, so these are stashed until save.
+  String _newBarangay = '';
+  String _newMunicipality = '';
+  String _newProvince = '';
+  String _newPostalCode = '';
+
   // Which id is currently selected (String for both saved and nearby)
   late String _selectedId;
 
@@ -75,13 +82,13 @@ class _AddressPageState extends State<AddressPage> {
     _addresses = providerAddresses;
     if (_selectedId.isEmpty && _addresses.isNotEmpty) {
       // Try to match the current delivery address string.
-      final match =
-          _addresses.where((a) => a.line1 == widget.current);
+      final match = _addresses.where((a) => a.line1 == widget.current);
       _selectedId = match.isNotEmpty
           ? match.first.id
-          : (_addresses.firstWhere((a) => a.isDefault,
-                  orElse: () => _addresses.first))
-              .id;
+          : (_addresses.firstWhere(
+              (a) => a.isDefault,
+              orElse: () => _addresses.first,
+            )).id;
     }
   }
 
@@ -95,20 +102,19 @@ class _AddressPageState extends State<AddressPage> {
   }
 
   void _delete(String id) async {
-    final err = await context
-        .read<UserProfileProvider>()
-        .deleteAddress(id);
+    final err = await context.read<UserProfileProvider>().deleteAddress(id);
     if (err != null && mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-        content: Text(err),
-        backgroundColor: kRed,
-        behavior: SnackBarBehavior.floating,
-      ));
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(err),
+          backgroundColor: kRed,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
       return;
     }
     if (_selectedId == id && _addresses.isNotEmpty) {
-      final remaining =
-          _addresses.where((a) => a.id != id).toList();
+      final remaining = _addresses.where((a) => a.id != id).toList();
       if (remaining.isNotEmpty) {
         setState(() => _selectedId = remaining.first.id);
         widget.onSelect(remaining.first);
@@ -118,23 +124,20 @@ class _AddressPageState extends State<AddressPage> {
 
   void _handleAddNew() async {
     if (_line1Ctrl.text.trim().isEmpty) return;
-    final uid =
-        context.read<AppAuthProvider>().user!.uid;
+    final uid = context.read<AppAuthProvider>().user!.uid;
     final provider = context.read<UserProfileProvider>();
 
     final addr = Address(
       id: '',
       userId: uid,
-      label: _labelCtrl.text.trim().isEmpty
-          ? 'Custom'
-          : _labelCtrl.text.trim(),
+      label: _labelCtrl.text.trim().isEmpty ? 'Custom' : _labelCtrl.text.trim(),
       icon: '📍',
       line1: _line1Ctrl.text.trim(),
       line2: _line2Ctrl.text.trim(),
-      barangay: '',
-      municipality: '',
-      province: '',
-      postalCode: '',
+      barangay: _newBarangay,
+      municipality: _newMunicipality,
+      province: _newProvince,
+      postalCode: _newPostalCode,
       country: 'Philippines',
       isDefault: provider.addresses.isEmpty,
       lat: _newLat,
@@ -144,11 +147,13 @@ class _AddressPageState extends State<AddressPage> {
     final err = await provider.addAddress(addr);
     if (!mounted) return;
     if (err != null) {
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-        content: Text(err),
-        backgroundColor: kRed,
-        behavior: SnackBarBehavior.floating,
-      ));
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(err),
+          backgroundColor: kRed,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
       return;
     }
 
@@ -159,6 +164,10 @@ class _AddressPageState extends State<AddressPage> {
       _line2Ctrl.clear();
       _newLat = null;
       _newLng = null;
+      _newBarangay = '';
+      _newMunicipality = '';
+      _newProvince = '';
+      _newPostalCode = '';
     });
     // The stream will update _addresses via the provider.
     widget.onSelect(addr);
@@ -177,8 +186,17 @@ class _AddressPageState extends State<AddressPage> {
     setState(() {
       _newLat = result.lat;
       _newLng = result.lng;
-      _line1Ctrl.text = result.address;
+      // Only fill line1 if the user hasn't typed anything yet.
+      if (_line1Ctrl.text.isEmpty) {
+        _line1Ctrl.text = result.street.isNotEmpty
+            ? result.street
+            : result.address;
+      }
       _line2Ctrl.clear();
+      _newBarangay = result.barangay;
+      _newMunicipality = result.municipality;
+      _newProvince = result.province;
+      _newPostalCode = result.postalCode;
       _showAddForm = true;
     });
   }
@@ -202,12 +220,12 @@ class _AddressPageState extends State<AddressPage> {
       userId: uid,
       label: 'Current Location',
       icon: '📍',
-      line1: result.address,
+      line1: result.street.isNotEmpty ? result.street : result.address,
       line2: '',
-      barangay: '',
-      municipality: '',
-      province: '',
-      postalCode: '',
+      barangay: result.barangay,
+      municipality: result.municipality,
+      province: result.province,
+      postalCode: result.postalCode,
       country: 'Philippines',
       isDefault: provider.addresses.isEmpty,
       lat: result.lat,
@@ -216,11 +234,13 @@ class _AddressPageState extends State<AddressPage> {
     final err = await provider.addAddress(addr);
     if (!mounted) return;
     if (err != null) {
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-        content: Text(err),
-        backgroundColor: kRed,
-        behavior: SnackBarBehavior.floating,
-      ));
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(err),
+          backgroundColor: kRed,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
       return;
     }
     // The stream updates _addresses; just select by line1.
@@ -230,18 +250,35 @@ class _AddressPageState extends State<AddressPage> {
 
   static const _kNearbyPlaces = [
     {'id': 'n1', 'icon': '🏪', 'name': 'Poblacion', 'sub': 'Town centre area'},
-    {'id': 'n2', 'icon': '🏨', 'name': 'City Hall', 'sub': 'Municipal / city government building'},
-    {'id': 'n3', 'icon': '🏬', 'name': 'Public Market', 'sub': 'Central public market'},
-    {'id': 'n4', 'icon': '🏫', 'name': 'National Highway', 'sub': 'Main road / highway'},
+    {
+      'id': 'n2',
+      'icon': '🏨',
+      'name': 'City Hall',
+      'sub': 'Municipal / city government building',
+    },
+    {
+      'id': 'n3',
+      'icon': '🏬',
+      'name': 'Public Market',
+      'sub': 'Central public market',
+    },
+    {
+      'id': 'n4',
+      'icon': '🏫',
+      'name': 'National Highway',
+      'sub': 'Main road / highway',
+    },
   ];
 
   List<Map<String, dynamic>> get _filteredNearby {
     final q = _searchQuery.toLowerCase();
     return _kNearbyPlaces
-        .where((p) =>
-            q.isEmpty ||
-            (p['name'] as String).toLowerCase().contains(q) ||
-            (p['sub'] as String).toLowerCase().contains(q))
+        .where(
+          (p) =>
+              q.isEmpty ||
+              (p['name'] as String).toLowerCase().contains(q) ||
+              (p['sub'] as String).toLowerCase().contains(q),
+        )
         .toList();
   }
 
@@ -250,8 +287,7 @@ class _AddressPageState extends State<AddressPage> {
   @override
   Widget build(BuildContext context) {
     // Sync address list from provider every build.
-    final providerAddresses =
-        context.watch<UserProfileProvider>().addresses;
+    final providerAddresses = context.watch<UserProfileProvider>().addresses;
     _syncAddresses(providerAddresses);
 
     return Column(
@@ -307,10 +343,18 @@ class _AddressPageState extends State<AddressPage> {
               Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: const [
-                  Text('Delivery address',
-                      style: TextStyle(color: kInk, fontSize: 18, fontWeight: FontWeight.w900)),
-                  Text('Choose where to deliver your order',
-                      style: TextStyle(color: kMuted, fontSize: 12)),
+                  Text(
+                    'Delivery address',
+                    style: TextStyle(
+                      color: kInk,
+                      fontSize: 18,
+                      fontWeight: FontWeight.w900,
+                    ),
+                  ),
+                  Text(
+                    'Choose where to deliver your order',
+                    style: TextStyle(color: kMuted, fontSize: 12),
+                  ),
                 ],
               ),
             ],
@@ -378,18 +422,28 @@ class _AddressPageState extends State<AddressPage> {
                 color: kBrand.withValues(alpha: 0.15),
                 borderRadius: BorderRadius.circular(12),
               ),
-              child: const Center(child: Icon(Icons.my_location, size: 20, color: kBrand)),
+              child: const Center(
+                child: Icon(Icons.my_location, size: 20, color: kBrand),
+              ),
             ),
             const SizedBox(width: 14),
             const Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text('Use my current location',
-                      style: TextStyle(color: kBrand, fontSize: 14, fontWeight: FontWeight.w800)),
+                  Text(
+                    'Use my current location',
+                    style: TextStyle(
+                      color: kBrand,
+                      fontSize: 14,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
                   SizedBox(height: 2),
-                  Text('Opens map · Pin your exact spot',
-                      style: TextStyle(color: kMuted, fontSize: 12)),
+                  Text(
+                    'Opens map · Pin your exact spot',
+                    style: TextStyle(color: kMuted, fontSize: 12),
+                  ),
                 ],
               ),
             ),
@@ -409,47 +463,50 @@ class _AddressPageState extends State<AddressPage> {
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            const Text('SAVED ADDRESSES',
-                style: TextStyle(
-                    color: kMuted,
-                    fontSize: 11,
-                    fontWeight: FontWeight.w700,
-                    letterSpacing: 1)),
+            const Text(
+              'SAVED ADDRESSES',
+              style: TextStyle(
+                color: kMuted,
+                fontSize: 11,
+                fontWeight: FontWeight.w700,
+                letterSpacing: 1,
+              ),
+            ),
             GestureDetector(
-              onTap: () => setState(
-                  () => _showAddForm = !_showAddForm),
+              onTap: () => setState(() => _showAddForm = !_showAddForm),
               child: Text(
                 _showAddForm ? 'Cancel' : '+ Add new',
                 style: const TextStyle(
-                    color: kBrand,
-                    fontSize: 13,
-                    fontWeight: FontWeight.w700),
+                  color: kBrand,
+                  fontSize: 13,
+                  fontWeight: FontWeight.w700,
+                ),
               ),
             ),
           ],
         ),
-        if (_showAddForm) ...[
-          const SizedBox(height: 12),
-          _buildAddForm(),
-        ],
+        if (_showAddForm) ...[const SizedBox(height: 12), _buildAddForm()],
         const SizedBox(height: 12),
         if (_addresses.isEmpty)
           Padding(
             padding: const EdgeInsets.symmetric(vertical: 8),
-            child: Text('No saved addresses yet.',
-                style: const TextStyle(
-                    color: kMuted, fontSize: 13)),
+            child: Text(
+              'No saved addresses yet.',
+              style: const TextStyle(color: kMuted, fontSize: 13),
+            ),
           ),
-        ..._addresses.map((addr) => Padding(
-              padding: const EdgeInsets.only(bottom: 10),
-              child: _AddressCard(
-                addr: addr,
-                isSelected: _selectedId == addr.id,
-                onTap: () => _handleSelect(addr),
-                onSetDefault: () => _setDefault(addr.id),
-                onDelete: () => _delete(addr.id),
-              ),
-            )),
+        ..._addresses.map(
+          (addr) => Padding(
+            padding: const EdgeInsets.only(bottom: 10),
+            child: _AddressCard(
+              addr: addr,
+              isSelected: _selectedId == addr.id,
+              onTap: () => _handleSelect(addr),
+              onSetDefault: () => _setDefault(addr.id),
+              onDelete: () => _delete(addr.id),
+            ),
+          ),
+        ),
       ],
     );
   }
@@ -467,8 +524,14 @@ class _AddressPageState extends State<AddressPage> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text('New address',
-              style: TextStyle(color: kInk, fontSize: 14, fontWeight: FontWeight.w800)),
+          const Text(
+            'New address',
+            style: TextStyle(
+              color: kInk,
+              fontSize: 14,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
           const SizedBox(height: 12),
 
           // ── Pin on map button ───────────────────────────────────────────
@@ -481,14 +544,18 @@ class _AddressPageState extends State<AddressPage> {
                     ? kBrand.withValues(alpha: 0.08)
                     : kSurface2,
                 border: Border.all(
-                  color: hasPinnedLocation ? kBrand.withValues(alpha: 0.4) : kBorder,
+                  color: hasPinnedLocation
+                      ? kBrand.withValues(alpha: 0.4)
+                      : kBorder,
                 ),
                 borderRadius: BorderRadius.circular(12),
               ),
               child: Row(
                 children: [
                   Icon(
-                    hasPinnedLocation ? Icons.location_on : Icons.add_location_alt_outlined,
+                    hasPinnedLocation
+                        ? Icons.location_on
+                        : Icons.add_location_alt_outlined,
                     size: 18,
                     color: hasPinnedLocation ? kBrand : kMuted,
                   ),
@@ -501,7 +568,9 @@ class _AddressPageState extends State<AddressPage> {
                       style: TextStyle(
                         color: hasPinnedLocation ? kBrand : kMuted,
                         fontSize: 13,
-                        fontWeight: hasPinnedLocation ? FontWeight.w600 : FontWeight.w400,
+                        fontWeight: hasPinnedLocation
+                            ? FontWeight.w600
+                            : FontWeight.w400,
                       ),
                     ),
                   ),
@@ -536,8 +605,14 @@ class _AddressPageState extends State<AddressPage> {
                     borderRadius: BorderRadius.circular(12),
                   ),
                   alignment: Alignment.center,
-                  child: const Text('Save address',
-                      style: TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.w700)),
+                  child: const Text(
+                    'Save address',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 14,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
                 ),
               );
             },
@@ -568,7 +643,10 @@ class _AddressPageState extends State<AddressPage> {
           borderRadius: BorderRadius.circular(12),
           borderSide: const BorderSide(color: kBrand, width: 1.5),
         ),
-        contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
+        contentPadding: const EdgeInsets.symmetric(
+          horizontal: 14,
+          vertical: 11,
+        ),
         isDense: true,
       ),
     );
@@ -582,9 +660,15 @@ class _AddressPageState extends State<AddressPage> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
-          _searchQuery.isNotEmpty ? 'Results for "$_searchQuery"' : 'NEARBY PLACES',
+          _searchQuery.isNotEmpty
+              ? 'Results for "$_searchQuery"'
+              : 'NEARBY PLACES',
           style: const TextStyle(
-              color: kMuted, fontSize: 11, fontWeight: FontWeight.w700, letterSpacing: 1),
+            color: kMuted,
+            fontSize: 11,
+            fontWeight: FontWeight.w700,
+            letterSpacing: 1,
+          ),
         ),
         const SizedBox(height: 12),
         if (places.isEmpty)
@@ -595,11 +679,19 @@ class _AddressPageState extends State<AddressPage> {
                 children: const [
                   Icon(Icons.map_outlined, size: 40, color: kMuted),
                   SizedBox(height: 10),
-                  Text('No places found',
-                      style: TextStyle(color: kInk, fontSize: 14, fontWeight: FontWeight.w600)),
+                  Text(
+                    'No places found',
+                    style: TextStyle(
+                      color: kInk,
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
                   SizedBox(height: 4),
-                  Text('Try a different search term',
-                      style: TextStyle(color: kMuted, fontSize: 13)),
+                  Text(
+                    'Try a different search term',
+                    style: TextStyle(color: kMuted, fontSize: 13),
+                  ),
                 ],
               ),
             ),
@@ -610,19 +702,26 @@ class _AddressPageState extends State<AddressPage> {
             // Synthetic Address: nearby places have no saved record and no
             // pinned coordinates — line1 carries the place name.
             return GestureDetector(
-              onTap: () => _handleSelect(Address(
-                id: place['id'] as String,
-                userId: '',
-                label: place['name'] as String,
-                icon: place['icon'] as String,
-                line1: place['name'] as String,
-              )),
+              onTap: () => _handleSelect(
+                Address(
+                  id: place['id'] as String,
+                  userId: '',
+                  label: place['name'] as String,
+                  icon: place['icon'] as String,
+                  line1: place['name'] as String,
+                ),
+              ),
               child: AnimatedContainer(
                 duration: const Duration(milliseconds: 150),
                 margin: const EdgeInsets.only(bottom: 2),
-                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 13),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 14,
+                  vertical: 13,
+                ),
                 decoration: BoxDecoration(
-                  color: isSelected ? kBrand.withValues(alpha: 0.08) : Colors.transparent,
+                  color: isSelected
+                      ? kBrand.withValues(alpha: 0.08)
+                      : Colors.transparent,
                   border: Border.all(
                     color: isSelected ? kBrand : Colors.transparent,
                   ),
@@ -639,7 +738,10 @@ class _AddressPageState extends State<AddressPage> {
                         borderRadius: BorderRadius.circular(12),
                       ),
                       child: Center(
-                        child: Text(place['icon'] as String, style: const TextStyle(fontSize: 18)),
+                        child: Text(
+                          place['icon'] as String,
+                          style: const TextStyle(fontSize: 18),
+                        ),
                       ),
                     ),
                     const SizedBox(width: 14),
@@ -647,15 +749,23 @@ class _AddressPageState extends State<AddressPage> {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text(place['name'] as String,
-                              style: const TextStyle(color: kInk, fontWeight: FontWeight.w700, fontSize: 14),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis),
+                          Text(
+                            place['name'] as String,
+                            style: const TextStyle(
+                              color: kInk,
+                              fontWeight: FontWeight.w700,
+                              fontSize: 14,
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
                           const SizedBox(height: 1),
-                          Text(place['sub'] as String,
-                              style: const TextStyle(color: kMuted, fontSize: 12),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis),
+                          Text(
+                            place['sub'] as String,
+                            style: const TextStyle(color: kMuted, fontSize: 12),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
                         ],
                       ),
                     ),
@@ -663,7 +773,10 @@ class _AddressPageState extends State<AddressPage> {
                       Container(
                         width: 9,
                         height: 9,
-                        decoration: const BoxDecoration(color: kBrand, shape: BoxShape.circle),
+                        decoration: const BoxDecoration(
+                          color: kBrand,
+                          shape: BoxShape.circle,
+                        ),
                       ),
                   ],
                 ),
@@ -693,8 +806,14 @@ class _AddressPageState extends State<AddressPage> {
             borderRadius: BorderRadius.circular(18),
           ),
           alignment: Alignment.center,
-          child: const Text('Deliver here ›',
-              style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w800)),
+          child: const Text(
+            'Deliver here ›',
+            style: TextStyle(
+              color: Colors.white,
+              fontSize: 16,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
         ),
       ),
     );
@@ -741,11 +860,16 @@ class _AddressCard extends StatelessWidget {
                   width: 42,
                   height: 42,
                   decoration: BoxDecoration(
-                    color: isSelected ? kBrand.withValues(alpha: 0.15) : kSurface2,
+                    color: isSelected
+                        ? kBrand.withValues(alpha: 0.15)
+                        : kSurface2,
                     borderRadius: BorderRadius.circular(12),
                   ),
                   child: Center(
-                    child: Text(addr.icon, style: const TextStyle(fontSize: 20)),
+                    child: Text(
+                      addr.icon,
+                      style: const TextStyle(fontSize: 20),
+                    ),
                   ),
                 ),
                 const SizedBox(width: 12),
@@ -755,34 +879,54 @@ class _AddressCard extends StatelessWidget {
                     children: [
                       Row(
                         children: [
-                          Text(addr.label,
-                              style: const TextStyle(
-                                  color: kInk, fontWeight: FontWeight.w800, fontSize: 14)),
+                          Text(
+                            addr.label,
+                            style: const TextStyle(
+                              color: kInk,
+                              fontWeight: FontWeight.w800,
+                              fontSize: 14,
+                            ),
+                          ),
                           if (addr.isDefault) ...[
                             const SizedBox(width: 6),
                             Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 8,
+                                vertical: 2,
+                              ),
                               decoration: BoxDecoration(
                                 color: kGreen.withValues(alpha: 0.15),
                                 borderRadius: BorderRadius.circular(100),
                               ),
-                              child: const Text('Default',
-                                  style: TextStyle(
-                                      color: kGreen, fontSize: 10, fontWeight: FontWeight.w700)),
+                              child: const Text(
+                                'Default',
+                                style: TextStyle(
+                                  color: kGreen,
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.w700,
+                                ),
+                              ),
                             ),
                           ],
                         ],
                       ),
                       const SizedBox(height: 1),
-                      Text(addr.line1,
-                          style: const TextStyle(
-                              color: kInk, fontSize: 13, fontWeight: FontWeight.w600),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis),
-                      Text(addr.shortLine,
-                          style: const TextStyle(color: kMuted, fontSize: 12),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis),
+                      Text(
+                        addr.line1,
+                        style: const TextStyle(
+                          color: kInk,
+                          fontSize: 13,
+                          fontWeight: FontWeight.w600,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      Text(
+                        addr.shortLine,
+                        style: const TextStyle(color: kMuted, fontSize: 12),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
                     ],
                   ),
                 ),
@@ -791,15 +935,20 @@ class _AddressCard extends StatelessWidget {
                   height: 20,
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
-                    border: Border.all(color: isSelected ? kBrand : kBorder, width: 2),
+                    border: Border.all(
+                      color: isSelected ? kBrand : kBorder,
+                      width: 2,
+                    ),
                   ),
                   child: isSelected
                       ? Center(
                           child: Container(
                             width: 9,
                             height: 9,
-                            decoration:
-                                const BoxDecoration(color: kBrand, shape: BoxShape.circle),
+                            decoration: const BoxDecoration(
+                              color: kBrand,
+                              shape: BoxShape.circle,
+                            ),
                           ),
                         )
                       : null,
@@ -828,11 +977,14 @@ class _AddressCard extends StatelessWidget {
                               borderRadius: BorderRadius.circular(10),
                             ),
                             alignment: Alignment.center,
-                            child: const Text('Set as default',
-                                style: TextStyle(
-                                    color: kMuted,
-                                    fontSize: 12,
-                                    fontWeight: FontWeight.w600)),
+                            child: const Text(
+                              'Set as default',
+                              style: TextStyle(
+                                color: kMuted,
+                                fontSize: 12,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
                           ),
                         ),
                       ),
@@ -843,15 +995,20 @@ class _AddressCard extends StatelessWidget {
                         child: Container(
                           padding: const EdgeInsets.symmetric(vertical: 7),
                           decoration: BoxDecoration(
-                            border: Border.all(color: kRed.withValues(alpha: 0.25)),
+                            border: Border.all(
+                              color: kRed.withValues(alpha: 0.25),
+                            ),
                             borderRadius: BorderRadius.circular(10),
                           ),
                           alignment: Alignment.center,
-                          child: const Text('Remove',
-                              style: TextStyle(
-                                  color: kRed,
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.w600)),
+                          child: const Text(
+                            'Remove',
+                            style: TextStyle(
+                              color: kRed,
+                              fontSize: 12,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
                         ),
                       ),
                     ),

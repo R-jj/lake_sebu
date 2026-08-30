@@ -9,12 +9,26 @@ import '../constants.dart';
 class MapPickerResult {
   final double lat;
   final double lng;
+
+  /// Flattened one-line address (kept for display + line-1 fallback).
   final String address;
+
+  // ── Structured address components (empty when geocoding found nothing) ─────
+  final String street;
+  final String barangay;
+  final String municipality;
+  final String province;
+  final String postalCode;
 
   const MapPickerResult({
     required this.lat,
     required this.lng,
     required this.address,
+    this.street = '',
+    this.barangay = '',
+    this.municipality = '',
+    this.province = '',
+    this.postalCode = '',
   });
 }
 
@@ -35,6 +49,7 @@ class _MapPickerPageState extends State<MapPickerPage> {
   // ── State ─────────────────────────────────────────────────────────────────
   LatLng? _pickedLatLng;
   String _resolvedAddress = '';
+  Placemark? _placemark;
   bool _isGeocoding = false;
   bool _isLocating = false;
 
@@ -58,9 +73,13 @@ class _MapPickerPageState extends State<MapPickerPage> {
     setState(() {
       _isGeocoding = true;
       _resolvedAddress = 'Fetching address…';
+      _placemark = null; // never reuse a previous pin's placemark
     });
     try {
-      final placemarks = await placemarkFromCoordinates(pos.latitude, pos.longitude);
+      final placemarks = await placemarkFromCoordinates(
+        pos.latitude,
+        pos.longitude,
+      );
       if (placemarks.isNotEmpty && mounted) {
         final p = placemarks.first;
         final parts = [
@@ -69,7 +88,10 @@ class _MapPickerPageState extends State<MapPickerPage> {
           p.locality,
           p.administrativeArea,
         ].where((s) => s != null && s.isNotEmpty).join(', ');
-        setState(() => _resolvedAddress = parts.isEmpty ? 'Unknown location' : parts);
+        setState(() {
+          _resolvedAddress = parts.isEmpty ? 'Unknown location' : parts;
+          _placemark = p;
+        });
       }
     } catch (_) {
       if (mounted) setState(() => _resolvedAddress = 'Unable to fetch address');
@@ -96,7 +118,9 @@ class _MapPickerPageState extends State<MapPickerPage> {
       }
 
       final pos = await Geolocator.getCurrentPosition(
-        locationSettings: const LocationSettings(accuracy: LocationAccuracy.high),
+        locationSettings: const LocationSettings(
+          accuracy: LocationAccuracy.high,
+        ),
       );
       final latLng = LatLng(pos.latitude, pos.longitude);
 
@@ -125,7 +149,9 @@ class _MapPickerPageState extends State<MapPickerPage> {
     setState(() => _isLocating = false);
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: const Text('Location permission denied. Enable it in Settings.'),
+        content: const Text(
+          'Location permission denied. Enable it in Settings.',
+        ),
         backgroundColor: kRed,
         behavior: SnackBarBehavior.floating,
       ),
@@ -134,11 +160,40 @@ class _MapPickerPageState extends State<MapPickerPage> {
 
   void _confirm() {
     if (_pickedLatLng == null) return;
+    final p = _placemark;
+    // Trim + null-coalesce each component; rural PH placemarks often leave
+    // several of these blank, so empty strings are fine downstream.
+    String comp(String? v) => v?.trim() ?? '';
+    // Placeholder strings shown while geocoding (or when nothing was found)
+    // must never leak into saved address fields — blank means "fill by hand".
+    const sentinels = {
+      'Fetching address…',
+      'Unable to fetch address',
+      'Unknown location',
+    };
+    final address = sentinels.contains(_resolvedAddress)
+        ? ''
+        : _resolvedAddress;
     Navigator.of(context).pop(
       MapPickerResult(
         lat: _pickedLatLng!.latitude,
         lng: _pickedLatLng!.longitude,
-        address: _resolvedAddress,
+        address: address,
+        street: p == null
+            ? ''
+            : (comp(p.street).isNotEmpty
+                  ? comp(p.street)
+                  : (comp(p.thoroughfare).isNotEmpty
+                        ? comp(p.thoroughfare)
+                        : comp(p.name))),
+        barangay: p == null ? '' : comp(p.subLocality),
+        municipality: p == null
+            ? ''
+            : (comp(p.locality).isNotEmpty
+                  ? comp(p.locality)
+                  : comp(p.subAdministrativeArea)),
+        province: p == null ? '' : comp(p.administrativeArea),
+        postalCode: p == null ? '' : comp(p.postalCode),
       ),
     );
   }
@@ -190,26 +245,45 @@ class _MapPickerPageState extends State<MapPickerPage> {
                         color: kCanvas,
                         borderRadius: BorderRadius.circular(12),
                         boxShadow: const [
-                          BoxShadow(color: Colors.black38, blurRadius: 6, offset: Offset(0, 2)),
+                          BoxShadow(
+                            color: Colors.black38,
+                            blurRadius: 6,
+                            offset: Offset(0, 2),
+                          ),
                         ],
                       ),
-                      child: const Icon(Icons.chevron_left, color: kInk, size: 24),
+                      child: const Icon(
+                        Icons.chevron_left,
+                        color: kInk,
+                        size: 24,
+                      ),
                     ),
                   ),
                   const SizedBox(width: 12),
                   Expanded(
                     child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 14,
+                        vertical: 11,
+                      ),
                       decoration: BoxDecoration(
                         color: kCanvas,
                         borderRadius: BorderRadius.circular(12),
                         boxShadow: const [
-                          BoxShadow(color: Colors.black38, blurRadius: 6, offset: Offset(0, 2)),
+                          BoxShadow(
+                            color: Colors.black38,
+                            blurRadius: 6,
+                            offset: Offset(0, 2),
+                          ),
                         ],
                       ),
                       child: const Row(
                         children: [
-                          Icon(Icons.location_on_outlined, size: 16, color: kBrand),
+                          Icon(
+                            Icons.location_on_outlined,
+                            size: 16,
+                            color: kBrand,
+                          ),
                           SizedBox(width: 8),
                           Text(
                             'Tap on the map to pin your location',
@@ -237,13 +311,20 @@ class _MapPickerPageState extends State<MapPickerPage> {
                   color: kCanvas,
                   borderRadius: BorderRadius.circular(14),
                   boxShadow: const [
-                    BoxShadow(color: Colors.black38, blurRadius: 8, offset: Offset(0, 3)),
+                    BoxShadow(
+                      color: Colors.black38,
+                      blurRadius: 8,
+                      offset: Offset(0, 3),
+                    ),
                   ],
                 ),
                 child: _isLocating
                     ? const Padding(
                         padding: EdgeInsets.all(12),
-                        child: CircularProgressIndicator(color: kBrand, strokeWidth: 2),
+                        child: CircularProgressIndicator(
+                          color: kBrand,
+                          strokeWidth: 2,
+                        ),
                       )
                     : const Icon(Icons.my_location, color: kBrand, size: 22),
               ),
@@ -270,7 +351,11 @@ class _MapPickerPageState extends State<MapPickerPage> {
         color: kSurface,
         borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
         boxShadow: const [
-          BoxShadow(color: Colors.black45, blurRadius: 20, offset: Offset(0, -4)),
+          BoxShadow(
+            color: Colors.black45,
+            blurRadius: 20,
+            offset: Offset(0, -4),
+          ),
         ],
       ),
       child: Column(
@@ -328,12 +413,16 @@ class _MapPickerPageState extends State<MapPickerPage> {
                                 ),
                               ),
                               SizedBox(width: 8),
-                              Text('Fetching address…',
-                                  style: TextStyle(color: kMuted, fontSize: 13)),
+                              Text(
+                                'Fetching address…',
+                                style: TextStyle(color: kMuted, fontSize: 13),
+                              ),
                             ],
                           )
                         : Text(
-                            _resolvedAddress.isEmpty ? 'Unknown location' : _resolvedAddress,
+                            _resolvedAddress.isEmpty
+                                ? 'Unknown location'
+                                : _resolvedAddress,
                             style: const TextStyle(
                               color: kInk,
                               fontSize: 14,

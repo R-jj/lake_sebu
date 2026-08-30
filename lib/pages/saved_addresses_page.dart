@@ -97,13 +97,11 @@ class _SavedAddressesPageState extends State<SavedAddressesPage> {
 
   Future<void> _saveForm() async {
     if (_line1Ctrl.text.trim().isEmpty) {
-      setState(
-          () => _formError = 'Street address is required.');
+      setState(() => _formError = 'Street address is required.');
       return;
     }
 
-    final uid =
-        context.read<AppAuthProvider>().user!.uid;
+    final uid = context.read<AppAuthProvider>().user!.uid;
     final provider = context.read<UserProfileProvider>();
 
     setState(() => _formError = null);
@@ -125,9 +123,7 @@ class _SavedAddressesPageState extends State<SavedAddressesPage> {
         province: _provinceCtrl.text.trim(),
         postalCode: _postalCtrl.text.trim(),
         country: 'Philippines',
-        notes: _notesCtrl.text.trim().isEmpty
-            ? null
-            : _notesCtrl.text.trim(),
+        notes: _notesCtrl.text.trim().isEmpty ? null : _notesCtrl.text.trim(),
         isDefault: provider.addresses.isEmpty, // first address = default
         lat: _formLat,
         lng: _formLng,
@@ -147,9 +143,7 @@ class _SavedAddressesPageState extends State<SavedAddressesPage> {
         province: _provinceCtrl.text.trim(),
         postalCode: _postalCtrl.text.trim(),
         country: 'Philippines',
-        notes: _notesCtrl.text.trim().isEmpty
-            ? null
-            : _notesCtrl.text.trim(),
+        notes: _notesCtrl.text.trim().isEmpty ? null : _notesCtrl.text.trim(),
         lat: _formLat,
         lng: _formLng,
       );
@@ -170,43 +164,64 @@ class _SavedAddressesPageState extends State<SavedAddressesPage> {
       body: 'This address will be permanently removed.',
     );
     if (confirmed != true || !mounted) return;
-    final err = await context
-        .read<UserProfileProvider>()
-        .deleteAddress(addr.id);
+    final err = await context.read<UserProfileProvider>().deleteAddress(
+      addr.id,
+    );
     if (err != null && mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-        content: Text(err),
-        backgroundColor: kRed,
-        behavior: SnackBarBehavior.floating,
-      ));
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(err),
+          backgroundColor: kRed,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
     }
   }
 
   Future<void> _setDefault(Address addr) async {
-    final err = await context
-        .read<UserProfileProvider>()
-        .setDefaultAddress(addr.id);
+    final err = await context.read<UserProfileProvider>().setDefaultAddress(
+      addr.id,
+    );
     if (err != null && mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-        content: Text(err),
-        backgroundColor: kRed,
-        behavior: SnackBarBehavior.floating,
-      ));
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(err),
+          backgroundColor: kRed,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
     }
   }
 
   Future<void> _openMapPicker() async {
     final result = await Navigator.of(context).push<MapPickerResult>(
       MaterialPageRoute(
-          builder: (_) => const MapPickerPage(),
-          fullscreenDialog: true),
+        builder: (_) => const MapPickerPage(),
+        fullscreenDialog: true,
+      ),
     );
     if (result == null || !mounted) return;
     setState(() {
       _formLat = result.lat;
       _formLng = result.lng;
+      // Autofill structured fields — only into empty ones, so anything the
+      // user already typed is never clobbered.
       if (_line1Ctrl.text.isEmpty) {
-        _line1Ctrl.text = result.address;
+        _line1Ctrl.text = result.street.isNotEmpty
+            ? result.street
+            : result.address;
+      }
+      if (_barangayCtrl.text.isEmpty && result.barangay.isNotEmpty) {
+        _barangayCtrl.text = result.barangay;
+      }
+      if (_municipalityCtrl.text.isEmpty && result.municipality.isNotEmpty) {
+        _municipalityCtrl.text = result.municipality;
+      }
+      if (_provinceCtrl.text.isEmpty && result.province.isNotEmpty) {
+        _provinceCtrl.text = result.province;
+      }
+      if (_postalCtrl.text.isEmpty && result.postalCode.isNotEmpty) {
+        _postalCtrl.text = result.postalCode;
       }
     });
   }
@@ -221,16 +236,14 @@ class _SavedAddressesPageState extends State<SavedAddressesPage> {
     return SubPageShell(
       title: 'Saved addresses',
       subtitle: _showForm
-          ? (_editingAddress == null
-              ? 'Add new address'
-              : 'Edit address')
+          ? (_editingAddress == null ? 'Add new address' : 'Edit address')
           : '${addresses.length} location${addresses.length != 1 ? 's' : ''} saved',
       onBack: _showForm ? _closeForm : widget.onBack,
       child: provider.addressesLoading
           ? const Center(child: CircularProgressIndicator(color: kBrand))
           : _showForm
-              ? _buildForm()
-              : _buildList(addresses),
+          ? _buildForm()
+          : _buildList(addresses),
     );
   }
 
@@ -239,15 +252,17 @@ class _SavedAddressesPageState extends State<SavedAddressesPage> {
       padding: const EdgeInsets.fromLTRB(20, 16, 20, 28),
       children: [
         if (addresses.isEmpty) _buildEmpty(),
-        ...addresses.map((addr) => Padding(
-              padding: const EdgeInsets.only(bottom: 12),
-              child: _AddressTile(
-                addr: addr,
-                onEdit: () => _openEditForm(addr),
-                onSetDefault: () => _setDefault(addr),
-                onRemove: () => _delete(addr),
-              ),
-            )),
+        ...addresses.map(
+          (addr) => Padding(
+            padding: const EdgeInsets.only(bottom: 12),
+            child: _AddressTile(
+              addr: addr,
+              onEdit: () => _openEditForm(addr),
+              onSetDefault: () => _setDefault(addr),
+              onRemove: () => _delete(addr),
+            ),
+          ),
+        ),
         const SizedBox(height: 4),
         GestureDetector(
           onTap: _openAddForm,
@@ -258,11 +273,14 @@ class _SavedAddressesPageState extends State<SavedAddressesPage> {
               borderRadius: BorderRadius.circular(16),
             ),
             alignment: Alignment.center,
-            child: const Text('+ Add new address',
-                style: TextStyle(
-                    color: kMuted,
-                    fontSize: 14,
-                    fontWeight: FontWeight.w600)),
+            child: const Text(
+              '+ Add new address',
+              style: TextStyle(
+                color: kMuted,
+                fontSize: 14,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
           ),
         ),
       ],
@@ -283,15 +301,20 @@ class _SavedAddressesPageState extends State<SavedAddressesPage> {
           children: [
             Text('📍', style: TextStyle(fontSize: 36)),
             SizedBox(height: 10),
-            Text('No saved addresses',
-                style: TextStyle(
-                    color: kInk,
-                    fontWeight: FontWeight.w700,
-                    fontSize: 15)),
+            Text(
+              'No saved addresses',
+              style: TextStyle(
+                color: kInk,
+                fontWeight: FontWeight.w700,
+                fontSize: 15,
+              ),
+            ),
             SizedBox(height: 4),
-            Text('Add an address to speed up checkout',
-                style: TextStyle(color: kMuted, fontSize: 13),
-                textAlign: TextAlign.center),
+            Text(
+              'Add an address to speed up checkout',
+              style: TextStyle(color: kMuted, fontSize: 13),
+              textAlign: TextAlign.center,
+            ),
           ],
         ),
       ),
@@ -326,26 +349,23 @@ class _SavedAddressesPageState extends State<SavedAddressesPage> {
           GestureDetector(
             onTap: _openMapPicker,
             child: Container(
-              padding: const EdgeInsets.symmetric(
-                  horizontal: 14, vertical: 12),
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
               decoration: BoxDecoration(
-                color: hasPinned
-                    ? kBrand.withValues(alpha: 0.08)
-                    : kSurface2,
+                color: hasPinned ? kBrand.withValues(alpha: 0.08) : kSurface2,
                 border: Border.all(
-                    color: hasPinned
-                        ? kBrand.withValues(alpha: 0.4)
-                        : kBorder),
+                  color: hasPinned ? kBrand.withValues(alpha: 0.4) : kBorder,
+                ),
                 borderRadius: BorderRadius.circular(12),
               ),
               child: Row(
                 children: [
                   Icon(
-                      hasPinned
-                          ? Icons.location_on
-                          : Icons.add_location_alt_outlined,
-                      size: 18,
-                      color: hasPinned ? kBrand : kMuted),
+                    hasPinned
+                        ? Icons.location_on
+                        : Icons.add_location_alt_outlined,
+                    size: 18,
+                    color: hasPinned ? kBrand : kMuted,
+                  ),
                   const SizedBox(width: 10),
                   Expanded(
                     child: Text(
@@ -353,16 +373,19 @@ class _SavedAddressesPageState extends State<SavedAddressesPage> {
                           ? '📍 ${_formLat!.toStringAsFixed(5)}, ${_formLng!.toStringAsFixed(5)}'
                           : 'Pin location on map (optional)',
                       style: TextStyle(
-                          color: hasPinned ? kBrand : kMuted,
-                          fontSize: 13,
-                          fontWeight: hasPinned
-                              ? FontWeight.w600
-                              : FontWeight.w400),
+                        color: hasPinned ? kBrand : kMuted,
+                        fontSize: 13,
+                        fontWeight: hasPinned
+                            ? FontWeight.w600
+                            : FontWeight.w400,
+                      ),
                     ),
                   ),
-                  Icon(Icons.chevron_right,
-                      size: 16,
-                      color: hasPinned ? kBrand : kMuted),
+                  Icon(
+                    Icons.chevron_right,
+                    size: 16,
+                    color: hasPinned ? kBrand : kMuted,
+                  ),
                 ],
               ),
             ),
@@ -373,8 +396,7 @@ class _SavedAddressesPageState extends State<SavedAddressesPage> {
           const SizedBox(height: 8),
           _field(_labelCtrl, 'Label (e.g. Home, Office)'),
           const SizedBox(height: 8),
-          _field(_line1Ctrl, 'Street / building / unit *',
-              required: true),
+          _field(_line1Ctrl, 'Street / building / unit *', required: true),
           const SizedBox(height: 8),
           _field(_line2Ctrl, 'Floor / block / lot (optional)'),
           const SizedBox(height: 8),
@@ -384,12 +406,18 @@ class _SavedAddressesPageState extends State<SavedAddressesPage> {
           const SizedBox(height: 8),
           _field(_provinceCtrl, 'Province'),
           const SizedBox(height: 8),
-          _field(_postalCtrl, 'Postal code',
-              inputType: TextInputType.number,
-              formatters: [FilteringTextInputFormatter.digitsOnly]),
+          _field(
+            _postalCtrl,
+            'Postal code',
+            inputType: TextInputType.number,
+            formatters: [FilteringTextInputFormatter.digitsOnly],
+          ),
           const SizedBox(height: 8),
-          _field(_notesCtrl, 'Delivery notes / landmark (optional)',
-              maxLines: 2),
+          _field(
+            _notesCtrl,
+            'Delivery notes / landmark (optional)',
+            maxLines: 2,
+          ),
           const SizedBox(height: 20),
 
           // Save button
@@ -407,31 +435,31 @@ class _SavedAddressesPageState extends State<SavedAddressesPage> {
                         ? const LinearGradient(
                             colors: [kBrand, kBrandDark],
                             begin: Alignment.topLeft,
-                            end: Alignment.bottomRight)
+                            end: Alignment.bottomRight,
+                          )
                         : null,
                     color: enabled ? null : kBorder,
                     borderRadius: BorderRadius.circular(14),
                     boxShadow: enabled
                         ? [
                             BoxShadow(
-                                color:
-                                    kBrand.withValues(alpha: 0.28),
-                                blurRadius: 14,
-                                offset: const Offset(0, 5))
+                              color: kBrand.withValues(alpha: 0.28),
+                              blurRadius: 14,
+                              offset: const Offset(0, 5),
+                            ),
                           ]
                         : null,
                   ),
                   alignment: Alignment.center,
                   child: Text(
-                    _editingAddress == null
-                        ? 'Save address'
-                        : 'Update address',
+                    _editingAddress == null ? 'Save address' : 'Update address',
                     style: TextStyle(
-                        color: enabled
-                            ? Colors.white
-                            : kMuted.withValues(alpha: 0.5),
-                        fontSize: 15,
-                        fontWeight: FontWeight.w700),
+                      color: enabled
+                          ? Colors.white
+                          : kMuted.withValues(alpha: 0.5),
+                      fontSize: 15,
+                      fontWeight: FontWeight.w700,
+                    ),
                   ),
                 ),
               );
@@ -442,12 +470,15 @@ class _SavedAddressesPageState extends State<SavedAddressesPage> {
     );
   }
 
-  Widget _sectionLabel(String label) => Text(label,
-      style: const TextStyle(
-          color: kMuted,
-          fontSize: 10,
-          fontWeight: FontWeight.w700,
-          letterSpacing: 1.2));
+  Widget _sectionLabel(String label) => Text(
+    label,
+    style: const TextStyle(
+      color: kMuted,
+      fontSize: 10,
+      fontWeight: FontWeight.w700,
+      letterSpacing: 1.2,
+    ),
+  );
 
   Widget _field(
     TextEditingController ctrl,
@@ -469,17 +500,21 @@ class _SavedAddressesPageState extends State<SavedAddressesPage> {
         filled: true,
         fillColor: kSurface2,
         border: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(12),
-            borderSide: const BorderSide(color: kBorder)),
+          borderRadius: BorderRadius.circular(12),
+          borderSide: const BorderSide(color: kBorder),
+        ),
         enabledBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(12),
-            borderSide: const BorderSide(color: kBorder)),
+          borderRadius: BorderRadius.circular(12),
+          borderSide: const BorderSide(color: kBorder),
+        ),
         focusedBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(12),
-            borderSide:
-                const BorderSide(color: kBrand, width: 1.5)),
+          borderRadius: BorderRadius.circular(12),
+          borderSide: const BorderSide(color: kBrand, width: 1.5),
+        ),
         contentPadding: const EdgeInsets.symmetric(
-            horizontal: 14, vertical: 11),
+          horizontal: 14,
+          vertical: 11,
+        ),
         isDense: true,
       ),
     );
@@ -488,8 +523,7 @@ class _SavedAddressesPageState extends State<SavedAddressesPage> {
   Widget _errorBanner(String msg) {
     return Container(
       width: double.infinity,
-      padding:
-          const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
       decoration: BoxDecoration(
         color: kRed.withValues(alpha: 0.08),
         border: Border.all(color: kRed.withValues(alpha: 0.25)),
@@ -497,46 +531,55 @@ class _SavedAddressesPageState extends State<SavedAddressesPage> {
       ),
       child: Row(
         children: [
-          const Icon(Icons.error_outline_rounded,
-              color: kRed, size: 16),
+          const Icon(Icons.error_outline_rounded, color: kRed, size: 16),
           const SizedBox(width: 10),
           Expanded(
-              child: Text(msg,
-                  style: const TextStyle(
-                      color: kRed, fontSize: 13, height: 1.4))),
+            child: Text(
+              msg,
+              style: const TextStyle(color: kRed, fontSize: 13, height: 1.4),
+            ),
+          ),
         ],
       ),
     );
   }
 
-  Future<bool?> _confirm(BuildContext context,
-      {required String title, required String body}) {
+  Future<bool?> _confirm(
+    BuildContext context, {
+    required String title,
+    required String body,
+  }) {
     return showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
         backgroundColor: kSurface,
-        shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(20)),
-        title: Text(title,
-            style: kSerif.copyWith(
-                color: kInk,
-                fontWeight: FontWeight.w900,
-                fontSize: 17)),
-        content: Text(body,
-            style: const TextStyle(
-                color: kMuted, fontSize: 14, height: 1.5)),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: Text(
+          title,
+          style: kSerif.copyWith(
+            color: kInk,
+            fontWeight: FontWeight.w900,
+            fontSize: 17,
+          ),
+        ),
+        content: Text(
+          body,
+          style: const TextStyle(color: kMuted, fontSize: 14, height: 1.5),
+        ),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(ctx).pop(false),
-            child: const Text('Cancel',
-                style: TextStyle(
-                    color: kMuted, fontWeight: FontWeight.w600)),
+            child: const Text(
+              'Cancel',
+              style: TextStyle(color: kMuted, fontWeight: FontWeight.w600),
+            ),
           ),
           TextButton(
             onPressed: () => Navigator.of(ctx).pop(true),
-            child: const Text('Remove',
-                style: TextStyle(
-                    color: kRed, fontWeight: FontWeight.w700)),
+            child: const Text(
+              'Remove',
+              style: TextStyle(color: kRed, fontWeight: FontWeight.w700),
+            ),
           ),
         ],
       ),
@@ -568,17 +611,16 @@ class _IconPicker extends StatelessWidget {
               width: 40,
               height: 40,
               decoration: BoxDecoration(
-                color: isSelected
-                    ? kBrand.withValues(alpha: 0.15)
-                    : kSurface2,
+                color: isSelected ? kBrand.withValues(alpha: 0.15) : kSurface2,
                 border: Border.all(
-                    color: isSelected ? kBrand : kBorder,
-                    width: isSelected ? 1.5 : 1),
+                  color: isSelected ? kBrand : kBorder,
+                  width: isSelected ? 1.5 : 1,
+                ),
                 borderRadius: BorderRadius.circular(12),
               ),
               child: Center(
-                  child: Text(icon,
-                      style: const TextStyle(fontSize: 18))),
+                child: Text(icon, style: const TextStyle(fontSize: 18)),
+              ),
             ),
           ),
         );
@@ -620,11 +662,12 @@ class _AddressTile extends StatelessWidget {
                 width: 42,
                 height: 42,
                 decoration: BoxDecoration(
-                    color: kSurface2,
-                    borderRadius: BorderRadius.circular(12)),
+                  color: kSurface2,
+                  borderRadius: BorderRadius.circular(12),
+                ),
                 child: Center(
-                    child: Text(addr.icon,
-                        style: const TextStyle(fontSize: 20))),
+                  child: Text(addr.icon, style: const TextStyle(fontSize: 20)),
+                ),
               ),
               const SizedBox(width: 12),
               Expanded(
@@ -633,55 +676,67 @@ class _AddressTile extends StatelessWidget {
                   children: [
                     Row(
                       children: [
-                        Text(addr.label,
-                            style: const TextStyle(
-                                color: kInk,
-                                fontWeight: FontWeight.w800,
-                                fontSize: 14)),
+                        Text(
+                          addr.label,
+                          style: const TextStyle(
+                            color: kInk,
+                            fontWeight: FontWeight.w800,
+                            fontSize: 14,
+                          ),
+                        ),
                         if (addr.isDefault) ...[
                           const SizedBox(width: 6),
                           Container(
                             padding: const EdgeInsets.symmetric(
-                                horizontal: 8, vertical: 2),
-                            decoration: BoxDecoration(
-                              color:
-                                  kGreen.withValues(alpha: 0.15),
-                              borderRadius:
-                                  BorderRadius.circular(100),
+                              horizontal: 8,
+                              vertical: 2,
                             ),
-                            child: const Text('Default',
-                                style: TextStyle(
-                                    color: kGreen,
-                                    fontSize: 10,
-                                    fontWeight: FontWeight.w700)),
+                            decoration: BoxDecoration(
+                              color: kGreen.withValues(alpha: 0.15),
+                              borderRadius: BorderRadius.circular(100),
+                            ),
+                            child: const Text(
+                              'Default',
+                              style: TextStyle(
+                                color: kGreen,
+                                fontSize: 10,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
                           ),
                         ],
                       ],
                     ),
                     const SizedBox(height: 2),
-                    Text(addr.line1,
-                        style: const TextStyle(
-                            color: kInk,
-                            fontSize: 13,
-                            fontWeight: FontWeight.w600),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis),
-                    Text(addr.shortLine,
-                        style: const TextStyle(
-                            color: kMuted, fontSize: 12),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis),
+                    Text(
+                      addr.line1,
+                      style: const TextStyle(
+                        color: kInk,
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    Text(
+                      addr.shortLine,
+                      style: const TextStyle(color: kMuted, fontSize: 12),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
                     if (addr.hasCoordinates) ...[
                       const SizedBox(height: 3),
                       Row(
                         children: [
-                          const Icon(Icons.location_on,
-                              size: 11, color: kBrand),
+                          const Icon(
+                            Icons.location_on,
+                            size: 11,
+                            color: kBrand,
+                          ),
                           const SizedBox(width: 3),
                           Text(
                             '${addr.lat!.toStringAsFixed(4)}, ${addr.lng!.toStringAsFixed(4)}',
-                            style: const TextStyle(
-                                color: kBrand, fontSize: 11),
+                            style: const TextStyle(color: kBrand, fontSize: 11),
                           ),
                         ],
                       ),
@@ -705,11 +760,7 @@ class _AddressTile extends StatelessWidget {
                 const SizedBox(width: 8),
               ],
               Expanded(
-                child: _ActionBtn(
-                  label: 'Edit',
-                  color: kBrand,
-                  onTap: onEdit,
-                ),
+                child: _ActionBtn(label: 'Edit', color: kBrand, onTap: onEdit),
               ),
               const SizedBox(width: 8),
               Expanded(
@@ -732,10 +783,11 @@ class _ActionBtn extends StatelessWidget {
   final Color color;
   final VoidCallback onTap;
 
-  const _ActionBtn(
-      {required this.label,
-      required this.color,
-      required this.onTap});
+  const _ActionBtn({
+    required this.label,
+    required this.color,
+    required this.onTap,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -748,11 +800,14 @@ class _ActionBtn extends StatelessWidget {
           borderRadius: BorderRadius.circular(10),
         ),
         alignment: Alignment.center,
-        child: Text(label,
-            style: TextStyle(
-                color: color,
-                fontSize: 12,
-                fontWeight: FontWeight.w600)),
+        child: Text(
+          label,
+          style: TextStyle(
+            color: color,
+            fontSize: 12,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
       ),
     );
   }
