@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import '../constants.dart';
 import '../models/order.dart';
 import '../providers/orders_provider.dart';
+import 'order_map_page.dart';
 
 /// Full-detail view for a single [FoodOrder].
 ///
@@ -485,31 +486,45 @@ class _OrderDetailPageState extends State<OrderDetailPage> {
   Widget _buildDeliveryCard(FoodOrder order) {
     return _SectionCard(
       title: 'Delivery address',
-      child: Row(
+      child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Container(
-            width: 36,
-            height: 36,
-            decoration: BoxDecoration(
-              color: kBrand.withValues(alpha: 0.10),
-              borderRadius: BorderRadius.circular(10),
-            ),
-            child: const Icon(Icons.location_on_outlined, color: kBrand, size: 18),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Text(
-              order.deliveryAddress.isNotEmpty
-                  ? order.deliveryAddress
-                  : 'No address provided',
-              style: const TextStyle(
-                color: kInk,
-                fontSize: 14,
-                height: 1.5,
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(
+                width: 36,
+                height: 36,
+                decoration: BoxDecoration(
+                  color: kBrand.withValues(alpha: 0.10),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: const Icon(Icons.location_on_outlined,
+                    color: kBrand, size: 18),
               ),
-            ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Text(
+                  order.deliveryAddress.isNotEmpty
+                      ? order.deliveryAddress
+                      : 'No address provided',
+                  style: const TextStyle(
+                    color: kInk,
+                    fontSize: 14,
+                    height: 1.5,
+                  ),
+                ),
+              ),
+            ],
           ),
+          if (order.hasDeliveryCoordinates) ...[
+            const SizedBox(height: 14),
+            OrderMapThumbnail(
+              lat: order.deliveryLat!,
+              lng: order.deliveryLng!,
+              address: order.deliveryAddress,
+            ),
+          ],
         ],
       ),
     );

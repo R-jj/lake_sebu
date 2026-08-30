@@ -16,18 +16,27 @@ import '../widgets/app_image.dart';
 /// Checkout flow:
 ///   1. Validate cart is not empty.
 ///   2. Ensure the user is authenticated.
-///   3. Check profile.phoneNumber — if missing, show phone-entry bottom sheet.
-///   4. Build the [Order] with customerPhone snapshot from the profile.
-///   5. Write to Firestore via [UserRepository.placeOrder].
-///   6. Clear cart only after a successful write.
-///   7. Show the success screen.
+///   3. Verify a delivery address is selected — block checkout if not.
+///   4. Check profile.phoneNumber — if missing, show phone-entry bottom sheet.
+///   5. Build the [FoodOrder] with customerPhone and delivery-coordinate
+///      snapshots from the profile and selected address.
+///   6. Write to Firestore via [UserRepository.placeOrder].
+///   7. Clear cart only after a successful write.
+///   8. Show the success screen.
 ///
-/// The cart is never cleared before step 5 succeeds.
+/// The cart is never cleared before step 6 succeeds.
 class CartPage extends StatefulWidget {
   final List<CartItem> items;
   final void Function(String id, int qty) onUpdate;
   final void Function(String page) onNav;
   final String deliveryAddress;
+
+  /// Pinned delivery coordinates matching [deliveryAddress], if any.
+  /// Snapshotted onto the order at checkout so the restaurant can open
+  /// the exact delivery spot on a map.
+  final double? deliveryLat;
+  final double? deliveryLng;
+
   final VoidCallback onChangeAddress;
 
   /// Called by [CartPage] ONLY after a successful Firestore order write.
@@ -40,6 +49,8 @@ class CartPage extends StatefulWidget {
     required this.onUpdate,
     required this.onNav,
     required this.deliveryAddress,
+    this.deliveryLat,
+    this.deliveryLng,
     required this.onChangeAddress,
     required this.onClearCart,
   });
@@ -106,7 +117,15 @@ class _CartPageState extends State<CartPage> {
       return;
     }
 
-    // 3. Check for a contact number — show entry sheet if missing.
+    // 3. Verify a delivery address is selected — an order without one
+    //    cannot be delivered, so block checkout with a clear error.
+    if (widget.deliveryAddress.trim().isEmpty) {
+      setState(() => _checkoutError =
+          'Please set a delivery address before placing your order.');
+      return;
+    }
+
+    // 4. Check for a contact number — show entry sheet if missing.
     String? phoneNumber = profileProvider.profile?.phoneNumber;
     if (phoneNumber == null || phoneNumber.isEmpty) {
       final saved = await _showPhoneEntrySheet();
@@ -124,7 +143,7 @@ class _CartPageState extends State<CartPage> {
       }
     }
 
-    // 4. Build the order.
+    // 5. Build the order.
     setState(() => _isPlacingOrder = true);
 
     try {
@@ -160,6 +179,10 @@ class _CartPageState extends State<CartPage> {
                 })
             .toList(),
         deliveryAddress: widget.deliveryAddress,
+        // Pinned delivery coordinates snapshot — only set when the
+        // selected address had a pinned location.
+        deliveryLat: widget.deliveryLat,
+        deliveryLng: widget.deliveryLng,
         subtotal: _subtotal,
         deliveryFee: _deliveryFee,
         discount: _discount,
@@ -168,15 +191,15 @@ class _CartPageState extends State<CartPage> {
         status: FoodOrderStatus.pending,
       );
 
-      // 5. Write to Firestore.
+      // 6. Write to Firestore.
       await UserRepository.instance.placeOrder(order);
 
-      // 6. Clear cart only after successful write.
+      // 7. Clear cart only after successful write.
       widget.onClearCart();
 
       if (!mounted) return;
 
-      // 7. Show success screen.
+      // 8. Show success screen.
       setState(() {
         _isPlacingOrder = false;
         _checkoutDone = true;
@@ -489,7 +512,9 @@ class _CartPageState extends State<CartPage> {
                                       color: kMuted, fontSize: 11)),
                               const SizedBox(height: 1),
                               Text(
-                                widget.deliveryAddress,
+                                widget.deliveryAddress.trim().isEmpty
+                                    ? 'Set delivery address'
+                                    : widget.deliveryAddress,
                                 style: const TextStyle(
                                     color: kInk,
                                     fontWeight: FontWeight.w700,

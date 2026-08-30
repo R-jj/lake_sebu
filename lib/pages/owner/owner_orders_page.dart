@@ -4,6 +4,7 @@ import '../../constants.dart';
 import '../../models/order.dart';
 import '../../providers/owner_orders_provider.dart';
 import 'owner_order_detail_page.dart';
+import '../order_map_page.dart';
 
 /// Displays all orders for the restaurant, grouped by a filter tab:
 ///   All  │  Pending  │  Active  │  Completed
@@ -273,6 +274,25 @@ class _OrderCard extends StatelessWidget {
                       fontWeight: FontWeight.w700),
                 ),
                 const Spacer(),
+                if (order.hasDeliveryCoordinates) ...[
+                  // Location pin — inner GestureDetector wins over the
+                  // card tap, so this opens the map, not the detail page.
+                  GestureDetector(
+                    onTap: () => Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => OrderMapPage(
+                          lat: order.deliveryLat!,
+                          lng: order.deliveryLng!,
+                          address: order.deliveryAddress,
+                        ),
+                      ),
+                    ),
+                    child: const Icon(Icons.location_on_outlined,
+                        color: kBrand, size: 18),
+                  ),
+                  const SizedBox(width: 8),
+                ],
                 if (createdAt != null)
                   Text(
                     _formatDate(createdAt),

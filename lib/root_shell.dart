@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'constants.dart';
+import 'models/address.dart';
 import 'models/cart_item.dart';
 import 'pages/home_page.dart';
 import 'pages/search_page.dart';
@@ -38,6 +39,12 @@ class _RootShellState extends State<RootShell> {
   // UserProfileProvider loads. Falls back to a prompt if no address is saved.
   String _deliveryAddress = '';
 
+  // Pinned coordinates of the selected delivery address, if any.
+  // Snapshotted onto the order at checkout so the restaurant can open
+  // the exact delivery spot on a map.
+  double? _deliveryLat;
+  double? _deliveryLng;
+
   // ── Cart state ──────────────────────────────────────────────────────────────
   final List<CartItem> _cartItems = [];
 
@@ -54,9 +61,11 @@ class _RootShellState extends State<RootShell> {
     // this session (i.e. _deliveryAddress is still empty = first load).
     if (_deliveryAddress.isEmpty) {
       final defaultAddr =
-          context.read<UserProfileProvider>().defaultAddress?.label;
-      if (defaultAddr != null && defaultAddr.isNotEmpty) {
-        _deliveryAddress = defaultAddr;
+          context.read<UserProfileProvider>().defaultAddress;
+      if (defaultAddr != null && defaultAddr.line1.isNotEmpty) {
+        _deliveryAddress = defaultAddr.line1;
+        _deliveryLat = defaultAddr.lat;
+        _deliveryLng = defaultAddr.lng;
       }
     }
   }
@@ -77,7 +86,11 @@ class _RootShellState extends State<RootShell> {
 
   void _closeAddress() => setState(() => _showAddressPage = false);
 
-  void _selectAddress(String addr) => setState(() => _deliveryAddress = addr);
+  void _selectAddress(Address addr) => setState(() {
+        _deliveryAddress = addr.line1;
+        _deliveryLat = addr.hasCoordinates ? addr.lat : null;
+        _deliveryLng = addr.hasCoordinates ? addr.lng : null;
+      });
 
   void _openSeeAll(String page) => setState(() => _seeAllPage = page);
 
@@ -172,12 +185,16 @@ class _RootShellState extends State<RootShell> {
     // Only auto-fill when the user hasn't manually chosen an address yet.
     final profileProvider = context.watch<UserProfileProvider>();
     if (_deliveryAddress.isEmpty) {
-      final defaultAddr = profileProvider.defaultAddress?.label;
-      if (defaultAddr != null && defaultAddr.isNotEmpty) {
+      final defaultAddr = profileProvider.defaultAddress;
+      if (defaultAddr != null && defaultAddr.line1.isNotEmpty) {
         // Schedule after build to avoid setState-during-build.
         WidgetsBinding.instance.addPostFrameCallback((_) {
           if (mounted && _deliveryAddress.isEmpty) {
-            setState(() => _deliveryAddress = defaultAddr);
+            setState(() {
+              _deliveryAddress = defaultAddr.line1;
+              _deliveryLat = defaultAddr.lat;
+              _deliveryLng = defaultAddr.lng;
+            });
           }
         });
       }
@@ -314,9 +331,9 @@ class _RootShellState extends State<RootShell> {
               items: _cartItems,
               onUpdate: _updateCartItem,
               onNav: _goTo,
-              deliveryAddress: _deliveryAddress.isEmpty
-                  ? 'Set delivery address'
-                  : _deliveryAddress,
+              deliveryAddress: _deliveryAddress,
+              deliveryLat: _deliveryLat,
+              deliveryLng: _deliveryLng,
               onChangeAddress: _openAddress,
               onClearCart: () => setState(() => _cartItems.clear()),
             ),

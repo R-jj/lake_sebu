@@ -10,11 +10,13 @@ import 'map_picker_page.dart';
 // ── Page ──────────────────────────────────────────────────────────────────────
 
 class AddressPage extends StatefulWidget {
-  /// The currently selected delivery address (line1).
+  /// The currently selected delivery address (line1) — used to mark the
+  /// matching saved address as selected on first load.
   final String current;
 
-  /// Called when the user confirms a selection.
-  final ValueChanged<String> onSelect;
+  /// Called when the user confirms a selection.  Carries the full
+  /// [Address] so the caller also receives any pinned coordinates.
+  final ValueChanged<Address> onSelect;
 
   /// Called when the back / "Deliver here" button is tapped.
   final VoidCallback onBack;
@@ -83,9 +85,9 @@ class _AddressPageState extends State<AddressPage> {
     }
   }
 
-  void _handleSelect(String id, String line1) {
-    setState(() => _selectedId = id);
-    widget.onSelect(line1);
+  void _handleSelect(Address addr) {
+    setState(() => _selectedId = addr.id);
+    widget.onSelect(addr);
   }
 
   void _setDefault(String id) async {
@@ -109,7 +111,7 @@ class _AddressPageState extends State<AddressPage> {
           _addresses.where((a) => a.id != id).toList();
       if (remaining.isNotEmpty) {
         setState(() => _selectedId = remaining.first.id);
-        widget.onSelect(remaining.first.line1);
+        widget.onSelect(remaining.first);
       }
     }
   }
@@ -159,7 +161,7 @@ class _AddressPageState extends State<AddressPage> {
       _newLng = null;
     });
     // The stream will update _addresses via the provider.
-    widget.onSelect(addr.line1);
+    widget.onSelect(addr);
   }
 
   /// Opens MapPickerPage. If [initialLatLng] is provided the map starts there.
@@ -223,7 +225,7 @@ class _AddressPageState extends State<AddressPage> {
     }
     // The stream updates _addresses; just select by line1.
     setState(() {});
-    widget.onSelect(addr.line1);
+    widget.onSelect(addr);
   }
 
   static const _kNearbyPlaces = [
@@ -443,7 +445,7 @@ class _AddressPageState extends State<AddressPage> {
               child: _AddressCard(
                 addr: addr,
                 isSelected: _selectedId == addr.id,
-                onTap: () => _handleSelect(addr.id, addr.line1),
+                onTap: () => _handleSelect(addr),
                 onSetDefault: () => _setDefault(addr.id),
                 onDelete: () => _delete(addr.id),
               ),
@@ -605,8 +607,16 @@ class _AddressPageState extends State<AddressPage> {
         else
           ...places.map((place) {
             final isSelected = _selectedId == place['id'];
+            // Synthetic Address: nearby places have no saved record and no
+            // pinned coordinates — line1 carries the place name.
             return GestureDetector(
-              onTap: () => _handleSelect(place['id'] as String, place['name'] as String),
+              onTap: () => _handleSelect(Address(
+                id: place['id'] as String,
+                userId: '',
+                label: place['name'] as String,
+                icon: place['icon'] as String,
+                line1: place['name'] as String,
+              )),
               child: AnimatedContainer(
                 duration: const Duration(milliseconds: 150),
                 margin: const EdgeInsets.only(bottom: 2),

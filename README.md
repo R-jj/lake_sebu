@@ -173,6 +173,7 @@ Customers may create/read their own orders; owners may read their restaurant's o
 | `restaurantName` | string | Snapshot — immutable |
 | `items` | array\<map\> | Each entry: `{ id, name, price, qty, img }` |
 | `deliveryAddress` | string | Formatted address snapshot — immutable |
+| `deliveryLat`, `deliveryLng` | number? | Pinned delivery coordinates snapshot — optional; lets owners open the exact delivery spot on a map |
 | `subtotal`, `deliveryFee`, `discount`, `total` | number | Immutable financials |
 | `promoCode` | string? | Applied code, if any |
 | `status` | string | See below — the **only** field an owner can update |

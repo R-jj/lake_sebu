@@ -15,6 +15,12 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 /// Stored on every order so the restaurant side can query:
 ///   `orders where restaurantId == <id>`
 /// No restaurant dashboard exists yet, but the data is ready for it.
+///
+/// # deliveryLat / deliveryLng
+/// Pinned delivery coordinates snapshot, captured from the customer's
+/// selected address at order-creation time so the restaurant can open
+/// the exact delivery spot on a map.  Written only when the selected
+/// address has coordinates — null otherwise.
 class FoodOrder {
   final String orderId;
 
@@ -38,6 +44,18 @@ class FoodOrder {
   // ── Delivery ──────────────────────────────────────────────────────────────
   final String deliveryAddress;
 
+  /// Pinned delivery location snapshot — latitude.
+  ///
+  /// Captured from the customer's selected saved address at
+  /// order-creation time, so the restaurant always has the exact delivery
+  /// spot even if the customer later edits or deletes the address.  Null
+  /// when the chosen address has no pinned coordinates (including orders
+  /// created before this feature existed).
+  final double? deliveryLat;
+
+  /// Pinned delivery location snapshot — longitude.  See [deliveryLat].
+  final double? deliveryLng;
+
   // ── Financials ────────────────────────────────────────────────────────────
   final double subtotal;
   final double deliveryFee;
@@ -60,6 +78,8 @@ class FoodOrder {
     required this.restaurantName,
     required this.items,
     required this.deliveryAddress,
+    this.deliveryLat,
+    this.deliveryLng,
     required this.subtotal,
     required this.deliveryFee,
     required this.discount,
@@ -69,12 +89,27 @@ class FoodOrder {
     this.createdAt,
   });
 
+  /// True when the order carries a pinned delivery location snapshot.
+  bool get hasDeliveryCoordinates =>
+      deliveryLat != null && deliveryLng != null;
+
   // ── Firestore serialisation ───────────────────────────────────────────────
 
   factory FoodOrder.fromFirestore(DocumentSnapshot doc) {
-    final d = doc.data() as Map<String, dynamic>;
+    // Thin wrapper: DocumentSnapshot is @sealed in cloud_firestore so it
+    // cannot be faked in tests — all parsing lives in [fromMap] instead.
+    return FoodOrder.fromMap(
+      doc.id,
+      doc.data() as Map<String, dynamic>,
+    );
+  }
+
+  /// Plain-map variant of [fromFirestore] so the parsing logic can be
+  /// unit-tested without a (sealed) `DocumentSnapshot`.  [id] is the
+  /// Firestore document ID; [d] is the document's data map.
+  factory FoodOrder.fromMap(String id, Map<String, dynamic> d) {
     return FoodOrder(
-      orderId: doc.id,
+      orderId: id,
       customerId: d['customerId'] as String? ?? '',
       customerName: d['customerName'] as String? ?? '',
       customerPhone: d['customerPhone'] as String? ?? '',
@@ -86,6 +121,8 @@ class FoodOrder {
         ),
       ),
       deliveryAddress: d['deliveryAddress'] as String? ?? '',
+      deliveryLat: (d['deliveryLat'] as num?)?.toDouble(),
+      deliveryLng: (d['deliveryLng'] as num?)?.toDouble(),
       subtotal: (d['subtotal'] as num?)?.toDouble() ?? 0.0,
       deliveryFee: (d['deliveryFee'] as num?)?.toDouble() ?? 0.0,
       discount: (d['discount'] as num?)?.toDouble() ?? 0.0,
@@ -107,6 +144,10 @@ class FoodOrder {
         'restaurantName': restaurantName,
         'items': items,
         'deliveryAddress': deliveryAddress,
+        // Pinned delivery coordinates — written only when present so
+        // documents stay exactly as they were when null.
+        if (deliveryLat != null) 'deliveryLat': deliveryLat,
+        if (deliveryLng != null) 'deliveryLng': deliveryLng,
         'subtotal': subtotal,
         'deliveryFee': deliveryFee,
         'discount': discount,
@@ -116,7 +157,11 @@ class FoodOrder {
         'createdAt': FieldValue.serverTimestamp(),
       };
 
-  FoodOrder copyWith({FoodOrderStatus? status}) => FoodOrder(
+  FoodOrder copyWith({
+    FoodOrderStatus? status,
+    double? deliveryLat,
+    double? deliveryLng,
+  }) => FoodOrder(
         orderId: orderId,
         customerId: customerId,
         customerName: customerName,
@@ -125,6 +170,8 @@ class FoodOrder {
         restaurantName: restaurantName,
         items: items,
         deliveryAddress: deliveryAddress,
+        deliveryLat: deliveryLat ?? this.deliveryLat,
+        deliveryLng: deliveryLng ?? this.deliveryLng,
         subtotal: subtotal,
         deliveryFee: deliveryFee,
         discount: discount,

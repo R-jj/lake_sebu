@@ -167,7 +167,13 @@ service cloud.firestore {
                     && request.resource.data.customerPhone is string
                     && request.resource.data.customerPhone.size() > 0
                     && request.resource.data.restaurantId is string
-                    && request.resource.data.restaurantId.size() > 0;
+                    && request.resource.data.restaurantId.size() > 0
+                    // deliveryLat / deliveryLng are optional pinned delivery
+                    // coordinates; when present they must be numbers.
+                    && (!('deliveryLat' in request.resource.data)
+                        || request.resource.data.deliveryLat is number)
+                    && (!('deliveryLng' in request.resource.data)
+                        || request.resource.data.deliveryLng is number);
 
       // ── Read: customer sees own orders; owner sees their restaurant's ─────
       allow read: if isAuthenticated()
@@ -197,6 +203,8 @@ service cloud.firestore {
                     && fieldNotChanged('customerName')
                     && fieldNotChanged('items')
                     && fieldNotChanged('deliveryAddress')
+                    && fieldNotChanged('deliveryLat')
+                    && fieldNotChanged('deliveryLng')
                     && fieldNotChanged('subtotal')
                     && fieldNotChanged('deliveryFee')
                     && fieldNotChanged('discount')

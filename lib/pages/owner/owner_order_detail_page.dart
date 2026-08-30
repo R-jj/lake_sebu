@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import '../../constants.dart';
 import '../../models/order.dart';
 import '../../providers/owner_orders_provider.dart';
+import '../order_map_page.dart';
 
 /// Full-screen detail view for a single order.
 ///
@@ -180,6 +181,14 @@ class _OwnerOrderDetailPageState extends State<OwnerOrderDetailPage> {
                       icon: Icons.location_on_outlined,
                       label: 'Address',
                       value: liveOrder.deliveryAddress),
+                  if (liveOrder.hasDeliveryCoordinates) ...[
+                    const SizedBox(height: 12),
+                    OrderMapThumbnail(
+                      lat: liveOrder.deliveryLat!,
+                      lng: liveOrder.deliveryLng!,
+                      address: liveOrder.deliveryAddress,
+                    ),
+                  ],
                 ],
               ),
             ),
