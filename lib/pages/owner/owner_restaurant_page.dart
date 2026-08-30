@@ -1,11 +1,13 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:provider/provider.dart';
 import '../../constants.dart';
 import '../../providers/auth_provider.dart';
 import '../../services/owner_repository.dart';
 import '../../utils/restaurant_form_helpers.dart';
+import '../map_picker_page.dart';
 
 // ── Page mode ──────────────────────────────────────────────────────────────────
 
@@ -262,12 +264,14 @@ class _RestaurantBody extends StatelessWidget {
     final openTime = data['openTime'] as String? ?? data['hours'] as String?;
     final phone = data['phone'] as String? ?? data['phoneNumber'] as String?;
     final address = data['address'] as String?;
+    final lat = (data['lat'] as num?)?.toDouble();
+    final lng = (data['lng'] as num?)?.toDouble();
 
     // Fields already rendered above — exclude from the generic section.
     const knownKeys = {
       'id', 'name', 'cuisine', 'category', 'description', 'about',
       'img', 'image', 'imageUrl', 'rating', 'openTime', 'hours',
-      'phone', 'phoneNumber', 'address',
+      'phone', 'phoneNumber', 'address', 'lat', 'lng',
     };
     final extras = Map.fromEntries(
       data.entries.where((e) => !knownKeys.contains(e.key)),
@@ -361,6 +365,10 @@ class _RestaurantBody extends StatelessWidget {
                     label: 'Address',
                     value: address,
                   ),
+                ],
+                if (lat != null && lng != null) ...[
+                  const _Divider(),
+                  _MapThumbnail(lat: lat, lng: lng),
                 ],
               ],
             ),
@@ -730,6 +738,132 @@ class _ImagePreviewFieldState extends State<_ImagePreviewField> {
   }
 }
 
+// ── Task 4.3b: _LocationPickerField ──────────────────────────────────────────
+
+/// Tappable card that opens [MapPickerPage] and displays the pinned location.
+///
+/// Shows "Pin on map" placeholder when no location is set.
+/// When a location is pinned, shows the resolved address and lat/lng subtitle,
+/// with an optional clear (×) button on the right.
+class _LocationPickerField extends StatelessWidget {
+  final double? lat;
+  final double? lng;
+  final String? resolvedAddress;
+  final bool enabled;
+  final void Function(double lat, double lng, String address) onPicked;
+  final VoidCallback? onClear;
+
+  const _LocationPickerField({
+    required this.onPicked,
+    this.lat,
+    this.lng,
+    this.resolvedAddress,
+    this.enabled = true,
+    this.onClear,
+  });
+
+  Future<void> _openPicker(BuildContext context) async {
+    final LatLng? initial =
+        lat != null ? LatLng(lat!, lng!) : null;
+
+    final result = await Navigator.of(context).push<MapPickerResult>(
+      MaterialPageRoute(
+        builder: (_) => MapPickerPage(initialPosition: initial),
+      ),
+    );
+
+    if (result != null) {
+      onPicked(result.lat, result.lng, result.address);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final bool hasPinned = lat != null;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text(
+          'Location',
+          style: TextStyle(
+            color: kInk,
+            fontSize: 14,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+        const SizedBox(height: 6),
+        GestureDetector(
+          onTap: enabled ? () => _openPicker(context) : null,
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+            decoration: BoxDecoration(
+              color: kSurface,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(
+                color: enabled ? kBorder : kBorder.withAlpha(100),
+              ),
+            ),
+            child: Row(
+              children: [
+                Icon(
+                  hasPinned
+                      ? Icons.location_on
+                      : Icons.location_on_outlined,
+                  color: hasPinned ? kBrand : kMuted,
+                  size: 18,
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: hasPinned
+                      ? Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              resolvedAddress?.isNotEmpty == true
+                                  ? resolvedAddress!
+                                  : 'Location pinned',
+                              style: const TextStyle(
+                                color: kInk,
+                                fontSize: 14,
+                                fontWeight: FontWeight.w600,
+                              ),
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                            const SizedBox(height: 2),
+                            Text(
+                              '${lat!.toStringAsFixed(6)}, '
+                              '${lng!.toStringAsFixed(6)}',
+                              style: const TextStyle(
+                                color: kMuted,
+                                fontSize: 11,
+                              ),
+                            ),
+                          ],
+                        )
+                      : const Text(
+                          'Pin on map',
+                          style: TextStyle(color: kMuted, fontSize: 14),
+                        ),
+                ),
+                if (hasPinned && onClear != null && enabled)
+                  IconButton(
+                    icon: const Icon(Icons.close, size: 16, color: kMuted),
+                    onPressed: onClear,
+                    padding: EdgeInsets.zero,
+                    constraints: const BoxConstraints(),
+                    splashRadius: 16,
+                  ),
+              ],
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
 // ── Task 4.4: _FormActionButton ───────────────────────────────────────────────
 
 /// Full-width action button for Create Restaurant / Save.
@@ -875,6 +1009,51 @@ class _Divider extends StatelessWidget {
       );
 }
 
+// ── _MapThumbnail ─────────────────────────────────────────────────────────────
+
+/// Lightweight embedded map showing the pinned restaurant location.
+///
+/// Uses [liteModeEnabled] on Android for static-like rendering without
+/// the full interactive map overhead.
+class _MapThumbnail extends StatelessWidget {
+  final double lat;
+  final double lng;
+
+  const _MapThumbnail({required this.lat, required this.lng});
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(top: 10),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(12),
+        child: SizedBox(
+          height: 160,
+          child: GoogleMap(
+            initialCameraPosition: CameraPosition(
+              target: LatLng(lat, lng),
+              zoom: 15,
+            ),
+            markers: {
+              Marker(
+                markerId: const MarkerId('restaurant'),
+                position: LatLng(lat, lng),
+                icon: BitmapDescriptor.defaultMarkerWithHue(
+                  BitmapDescriptor.hueOrange,
+                ),
+              ),
+            },
+            zoomControlsEnabled: false,
+            myLocationButtonEnabled: false,
+            mapToolbarEnabled: false,
+            liteModeEnabled: true,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 class _ErrorView extends StatelessWidget {
   final String message;
   final VoidCallback onRetry;
@@ -942,6 +1121,11 @@ class _SetupViewState extends State<_SetupView> {
   bool _isSaving = false;
   String? _errorMessage;
 
+  // Location state
+  double? _lat;
+  double? _lng;
+  String? _locationAddress;
+
   /// Retained after a successful `createRestaurant` call so a failed
   /// `linkRestaurantToOwner` can be retried without creating a duplicate.
   String? _pendingRestaurantId;
@@ -980,6 +1164,7 @@ class _SetupViewState extends State<_SetupView> {
             'phone': _phoneCtrl.text.trim(),
           if (_addressCtrl.text.trim().isNotEmpty)
             'address': _addressCtrl.text.trim(),
+          if (_lat != null) ...{'lat': _lat, 'lng': _lng},
         };
         try {
           _pendingRestaurantId =
@@ -1030,6 +1215,7 @@ class _SetupViewState extends State<_SetupView> {
           'phone': _phoneCtrl.text.trim(),
         if (_addressCtrl.text.trim().isNotEmpty)
           'address': _addressCtrl.text.trim(),
+        if (_lat != null) ...{'lat': _lat, 'lng': _lng},
         'id': _pendingRestaurantId!,
       };
 
@@ -1134,8 +1320,29 @@ class _SetupViewState extends State<_SetupView> {
                   label: 'Address',
                   hint: 'Street, City',
                   maxLines: 2,
-                  textInputAction: TextInputAction.done,
+                  textInputAction: TextInputAction.next,
                   enabled: !_isSaving,
+                ),
+                const SizedBox(height: 16),
+                _LocationPickerField(
+                  lat: _lat,
+                  lng: _lng,
+                  resolvedAddress: _locationAddress,
+                  enabled: !_isSaving,
+                  onPicked: (lat, lng, addr) => setState(() {
+                    _lat = lat;
+                    _lng = lng;
+                    _locationAddress = addr;
+                    // Auto-fill address text field if empty
+                    if (_addressCtrl.text.trim().isEmpty) {
+                      _addressCtrl.text = addr;
+                    }
+                  }),
+                  onClear: () => setState(() {
+                    _lat = null;
+                    _lng = null;
+                    _locationAddress = null;
+                  }),
                 ),
                 const SizedBox(height: 28),
                 _FormActionButton(
@@ -1187,6 +1394,11 @@ class _EditViewState extends State<_EditView> {
   bool _isSaving = false;
   String? _errorMessage;
 
+  // Location state
+  double? _lat;
+  double? _lng;
+  String? _locationAddress;
+
   @override
   void initState() {
     super.initState();
@@ -1198,6 +1410,10 @@ class _EditViewState extends State<_EditView> {
     _phoneCtrl = TextEditingController(text: d['phone'] as String? ?? '');
     _addressCtrl = TextEditingController(text: d['address'] as String? ?? '');
     _selectedCuisine = d['cuisine'] as String?;
+    _lat = (d['lat'] as num?)?.toDouble();
+    _lng = (d['lng'] as num?)?.toDouble();
+    // Use stored address as display label; a re-pin will update it
+    _locationAddress = d['address'] as String?;
   }
 
   @override
@@ -1228,6 +1444,8 @@ class _EditViewState extends State<_EditView> {
       'openTime': _openTimeCtrl.text.trim(),
       'phone': _phoneCtrl.text.trim(),
       'address': _addressCtrl.text.trim(),
+      'lat': _lat,
+      'lng': _lng,
     };
 
     // Normalise original values to empty string for direct comparison
@@ -1239,6 +1457,8 @@ class _EditViewState extends State<_EditView> {
       'openTime': widget.initialData['openTime'] as String? ?? '',
       'phone': widget.initialData['phone'] as String? ?? '',
       'address': widget.initialData['address'] as String? ?? '',
+      'lat': (widget.initialData['lat'] as num?)?.toDouble(),
+      'lng': (widget.initialData['lng'] as num?)?.toDouble(),
     };
 
     final diff = computeDiff(originalNormalised, updatedFields);
@@ -1366,8 +1586,29 @@ class _EditViewState extends State<_EditView> {
                   label: 'Address',
                   hint: 'Street, City',
                   maxLines: 2,
-                  textInputAction: TextInputAction.done,
+                  textInputAction: TextInputAction.next,
                   enabled: !_isSaving,
+                ),
+                const SizedBox(height: 16),
+                _LocationPickerField(
+                  lat: _lat,
+                  lng: _lng,
+                  resolvedAddress: _locationAddress,
+                  enabled: !_isSaving,
+                  onPicked: (lat, lng, addr) => setState(() {
+                    _lat = lat;
+                    _lng = lng;
+                    _locationAddress = addr;
+                    // Auto-fill address text field if empty
+                    if (_addressCtrl.text.trim().isEmpty) {
+                      _addressCtrl.text = addr;
+                    }
+                  }),
+                  onClear: () => setState(() {
+                    _lat = null;
+                    _lng = null;
+                    _locationAddress = null;
+                  }),
                 ),
                 const SizedBox(height: 28),
                 _FormActionButton(
