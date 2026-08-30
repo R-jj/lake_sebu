@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import '../constants.dart';
@@ -5,10 +7,11 @@ import '../constants.dart';
 /// Full-screen map view showing an order's pinned delivery location.
 ///
 /// Displays an interactive Google map with a marker at the exact
-/// delivery spot, plus the address and coordinate readout in a card
-/// at the bottom.  Opened from [OrderMapThumbnail] and the owner
-/// orders list.
-class OrderMapPage extends StatelessWidget {
+/// delivery spot, floating zoom / recenter controls, and the address
+/// and coordinate readout in a card at the bottom.  Pinch, pan, and
+/// rotate gestures stay enabled.  Opened from [OrderMapThumbnail] and
+/// the owner orders list.
+class OrderMapPage extends StatefulWidget {
   /// Pinned delivery latitude (from `FoodOrder.deliveryLat`).
   final double lat;
 
@@ -26,8 +29,37 @@ class OrderMapPage extends StatelessWidget {
   });
 
   @override
+  State<OrderMapPage> createState() => _OrderMapPageState();
+}
+
+class _OrderMapPageState extends State<OrderMapPage> {
+  // ── Map controller ────────────────────────────────────────────────────────
+
+  final Completer<GoogleMapController> _controller = Completer();
+
+  // ── Helpers ───────────────────────────────────────────────────────────────
+
+  /// Zooms the camera in (positive [delta]) or out (negative).
+  Future<void> _zoomBy(double delta) async {
+    if (!_controller.isCompleted) return;
+    final mapCtrl = await _controller.future;
+    await mapCtrl.animateCamera(CameraUpdate.zoomBy(delta));
+  }
+
+  /// Re-centers the camera on the pinned delivery spot at initial zoom.
+  Future<void> _recenter() async {
+    if (!_controller.isCompleted) return;
+    final mapCtrl = await _controller.future;
+    await mapCtrl.animateCamera(
+      CameraUpdate.newLatLngZoom(LatLng(widget.lat, widget.lng), 16),
+    );
+  }
+
+  // ── Build ─────────────────────────────────────────────────────────────────
+
+  @override
   Widget build(BuildContext context) {
-    final position = LatLng(lat, lng);
+    final position = LatLng(widget.lat, widget.lng);
 
     return Scaffold(
       backgroundColor: kCanvas,
@@ -55,21 +87,53 @@ class OrderMapPage extends StatelessWidget {
       body: Column(
         children: [
           Expanded(
-            child: GoogleMap(
-              initialCameraPosition: CameraPosition(target: position, zoom: 16),
-              markers: {
-                Marker(
-                  markerId: const MarkerId('delivery'),
-                  position: position,
-                  infoWindow: InfoWindow(
-                    title: 'Delivery address',
-                    snippet: address,
+            child: Stack(
+              children: [
+                GoogleMap(
+                  initialCameraPosition: CameraPosition(
+                    target: position,
+                    zoom: 16,
+                  ),
+                  onMapCreated: (ctrl) => _controller.complete(ctrl),
+                  markers: {
+                    Marker(
+                      markerId: const MarkerId('delivery'),
+                      position: position,
+                      infoWindow: InfoWindow(
+                        title: 'Delivery address',
+                        snippet: widget.address,
+                      ),
+                    ),
+                  },
+                  zoomControlsEnabled: false,
+                  myLocationButtonEnabled: false,
+                  mapToolbarEnabled: false,
+                ),
+
+                // ── Zoom / recenter controls ────────────────────────────
+                Positioned(
+                  right: 16,
+                  top: 16,
+                  child: Column(
+                    children: [
+                      _MapControlButton(
+                        icon: Icons.add,
+                        onTap: () => _zoomBy(1),
+                      ),
+                      const SizedBox(height: 10),
+                      _MapControlButton(
+                        icon: Icons.remove,
+                        onTap: () => _zoomBy(-1),
+                      ),
+                      const SizedBox(height: 10),
+                      _MapControlButton(
+                        icon: Icons.filter_center_focus,
+                        onTap: _recenter,
+                      ),
+                    ],
                   ),
                 ),
-              },
-              zoomControlsEnabled: false,
-              myLocationButtonEnabled: false,
-              mapToolbarEnabled: false,
+              ],
             ),
           ),
           // ── Address + coordinates card ───────────────────────────────
@@ -104,7 +168,9 @@ class OrderMapPage extends StatelessWidget {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          address.isNotEmpty ? address : 'Pinned location',
+                          widget.address.isNotEmpty
+                              ? widget.address
+                              : 'Pinned location',
                           style: const TextStyle(
                             color: kInk,
                             fontSize: 14,
@@ -113,7 +179,8 @@ class OrderMapPage extends StatelessWidget {
                         ),
                         const SizedBox(height: 4),
                         Text(
-                          '${lat.toStringAsFixed(6)}, ${lng.toStringAsFixed(6)}',
+                          '${widget.lat.toStringAsFixed(6)}, '
+                          '${widget.lng.toStringAsFixed(6)}',
                           style: const TextStyle(color: kMuted, fontSize: 11),
                         ),
                       ],
@@ -184,6 +251,40 @@ class OrderMapThumbnail extends StatelessWidget {
             liteModeEnabled: true,
           ),
         ),
+      ),
+    );
+  }
+}
+
+// ── _MapControlButton ───────────────────────────────────────────────────────
+
+/// Floating control button overlayed on the full-screen order map.
+/// Mirrors the FAB styling used in `map_picker_page.dart`.
+class _MapControlButton extends StatelessWidget {
+  final IconData icon;
+  final VoidCallback onTap;
+
+  const _MapControlButton({required this.icon, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        width: 44,
+        height: 44,
+        decoration: BoxDecoration(
+          color: kCanvas,
+          borderRadius: BorderRadius.circular(12),
+          boxShadow: const [
+            BoxShadow(
+              color: Colors.black38,
+              blurRadius: 8,
+              offset: Offset(0, 3),
+            ),
+          ],
+        ),
+        child: Icon(icon, color: kBrand, size: 22),
       ),
     );
   }
