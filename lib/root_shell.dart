@@ -23,6 +23,25 @@ class RootShell extends StatefulWidget {
   State<RootShell> createState() => _RootShellState();
 }
 
+/// Snapshot of every variable that drives the RootShell UI.
+/// Stored on the history stack so the back button can restore the exact
+/// previous state no matter how the user navigated.
+class _NavState {
+  final String page;
+  final String? viewingItemId;
+  final String? viewingRestaurantId;
+  final bool showAddressPage;
+  final String? seeAllPage;
+
+  const _NavState({
+    required this.page,
+    this.viewingItemId,
+    this.viewingRestaurantId,
+    this.showAddressPage = false,
+    this.seeAllPage,
+  });
+}
+
 class _RootShellState extends State<RootShell> {
   // ── Navigation state ────────────────────────────────────────────────────────
   String _page = 'home';
@@ -33,6 +52,11 @@ class _RootShellState extends State<RootShell> {
   // ── See-all overlays ─────────────────────────────────────────────────────────
   // null | 'categories' | 'dishes' | 'restaurants'
   String? _seeAllPage;
+
+  // ── History stack ────────────────────────────────────────────────────────────
+  // Each forward navigation pushes the *current* state here so the back
+  // button can restore it exactly.
+  final List<_NavState> _history = [];
 
   // ── Delivery address ────────────────────────────────────────────────────────
   // Starts empty; populated from the user's saved default address once
@@ -70,21 +94,61 @@ class _RootShellState extends State<RootShell> {
     }
   }
 
-  void _goTo(String page) => setState(() {
-        _page = page;
-        _viewingItemId = null;
-        _viewingRestaurantId = null;
-        _showAddressPage = false;
-        _seeAllPage = null;
-      });
+  // ── History helpers ──────────────────────────────────────────────────────────
 
-  void _openItem(String id) => setState(() => _viewingItemId = id);
+  /// Snapshot of the current navigation state.
+  _NavState get _currentState => _NavState(
+        page: _page,
+        viewingItemId: _viewingItemId,
+        viewingRestaurantId: _viewingRestaurantId,
+        showAddressPage: _showAddressPage,
+        seeAllPage: _seeAllPage,
+      );
 
-  void _closeItem() => setState(() => _viewingItemId = null);
+  /// Save current state to history, then apply [update].
+  void _push(VoidCallback update) {
+    _history.add(_currentState);
+    setState(update);
+  }
 
-  void _openAddress() => setState(() => _showAddressPage = true);
+  /// Restore the most-recent history entry.
+  void _popHistory() {
+    if (_history.isEmpty) return;
+    final prev = _history.removeLast();
+    setState(() {
+      _page = prev.page;
+      _viewingItemId = prev.viewingItemId;
+      _viewingRestaurantId = prev.viewingRestaurantId;
+      _showAddressPage = prev.showAddressPage;
+      _seeAllPage = prev.seeAllPage;
+    });
+  }
 
-  void _closeAddress() => setState(() => _showAddressPage = false);
+  // ── Navigation helpers ────────────────────────────────────────────────────
+
+  void _goTo(String page) {
+    // Tapping a bottom-nav tab that is already active does nothing.
+    if (page == _page &&
+        _viewingItemId == null &&
+        _viewingRestaurantId == null &&
+        !_showAddressPage &&
+        _seeAllPage == null) { return; }
+    _push(() {
+      _page = page;
+      _viewingItemId = null;
+      _viewingRestaurantId = null;
+      _showAddressPage = false;
+      _seeAllPage = null;
+    });
+  }
+
+  void _openItem(String id) => _push(() => _viewingItemId = id);
+
+  void _closeItem() => _popHistory();
+
+  void _openAddress() => _push(() => _showAddressPage = true);
+
+  void _closeAddress() => _popHistory();
 
   void _selectAddress(Address addr) => setState(() {
         _deliveryAddress = addr.line1;
@@ -92,13 +156,13 @@ class _RootShellState extends State<RootShell> {
         _deliveryLng = addr.hasCoordinates ? addr.lng : null;
       });
 
-  void _openSeeAll(String page) => setState(() => _seeAllPage = page);
+  void _openSeeAll(String page) => _push(() => _seeAllPage = page);
 
-  void _closeSeeAll() => setState(() => _seeAllPage = null);
+  void _closeSeeAll() => _popHistory();
 
-  void _openRestaurant(String id) => setState(() => _viewingRestaurantId = id);
+  void _openRestaurant(String id) => _push(() => _viewingRestaurantId = id);
 
-  void _closeRestaurant() => setState(() => _viewingRestaurantId = null);
+  void _closeRestaurant() => _popHistory();
 
   // ── Cart helpers ─────────────────────────────────────────────────────────────
 
@@ -145,34 +209,15 @@ class _RootShellState extends State<RootShell> {
 
   // ── Build ────────────────────────────────────────────────────────────────────
 
-  /// Returns true when there is an overlay layer that the back button can close.
-  bool get _canPop =>
-      _showAddressPage ||
-      _seeAllPage != null ||
-      _viewingItemId != null ||
-      _viewingRestaurantId != null ||
-      _page == 'cart';
-
-  void _handlePop() {
-    if (_showAddressPage) {
-      _closeAddress();
-    } else if (_viewingItemId != null) {
-      _closeItem();
-    } else if (_viewingRestaurantId != null) {
-      _closeRestaurant();
-    } else if (_seeAllPage != null) {
-      _closeSeeAll();
-    } else if (_page == 'cart') {
-      _goTo('home');
-    }
-  }
+  /// There is something to go back to whenever the history stack is non-empty.
+  bool get _canPop => _history.isNotEmpty;
 
   @override
   Widget build(BuildContext context) {
     return PopScope(
       canPop: !_canPop,
       onPopInvokedWithResult: (didPop, _) {
-        if (!didPop && _canPop) _handlePop();
+        if (!didPop && _canPop) _popHistory();
       },
       child: _buildContent(),
     );
@@ -232,10 +277,11 @@ class _RootShellState extends State<RootShell> {
         body: SafeArea(
           child: AllDishesPage(
             onBack: _closeSeeAll,
-            onViewItem: (id) {
-              _closeSeeAll();
-              _openItem(id);
-            },
+            onViewItem: (id) => _push(() {
+              // Atomically swap seeAll → item so back returns here, not home.
+              _seeAllPage = null;
+              _viewingItemId = id;
+            }),
             onAddToCart: _addToCart,
             cartCount: _cartCount,
             cartTotal: _cartTotal,
@@ -250,15 +296,14 @@ class _RootShellState extends State<RootShell> {
         body: SafeArea(
           child: AllRestaurantsPage(
             onBack: _closeSeeAll,
-            onViewItem: (id) {
-              _closeSeeAll();
-              _openItem(id);
-            },
-
-            onViewRestaurant: (id) {
-              _closeSeeAll();
-              _openRestaurant(id);
-            },
+            onViewItem: (id) => _push(() {
+              _seeAllPage = null;
+              _viewingItemId = id;
+            }),
+            onViewRestaurant: (id) => _push(() {
+              _seeAllPage = null;
+              _viewingRestaurantId = id;
+            }),
           ),
         ),
       );
@@ -274,10 +319,11 @@ class _RootShellState extends State<RootShell> {
             onBack: _closeItem,
             onAddToCart: _addFromDetail,
             onViewItem: _openItem,
-            onViewRestaurant: (id) {
-              _closeItem();
-              _openRestaurant(id);
-            },
+            onViewRestaurant: (id) => _push(() {
+              // Atomically swap item → restaurant so back returns to item.
+              _viewingItemId = null;
+              _viewingRestaurantId = id;
+            }),
             cartCount: _cartCount,
             cartTotal: _cartTotal,
             onOpenCart: () => _goTo('cart'),

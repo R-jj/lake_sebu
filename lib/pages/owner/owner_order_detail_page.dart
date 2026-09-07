@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../../constants.dart';
 import '../../models/order.dart';
 import '../../providers/owner_orders_provider.dart';
@@ -181,14 +182,15 @@ class _OwnerOrderDetailPageState extends State<OwnerOrderDetailPage> {
                       icon: Icons.location_on_outlined,
                       label: 'Address',
                       value: liveOrder.deliveryAddress),
-                  if (liveOrder.hasDeliveryCoordinates) ...[
-                    const SizedBox(height: 12),
+                  const SizedBox(height: 12),
+                  if (liveOrder.hasDeliveryCoordinates)
                     OrderMapThumbnail(
                       lat: liveOrder.deliveryLat!,
                       lng: liveOrder.deliveryLng!,
                       address: liveOrder.deliveryAddress,
-                    ),
-                  ],
+                    )
+                  else if (liveOrder.deliveryAddress.trim().isNotEmpty)
+                    _AddressMapButton(address: liveOrder.deliveryAddress),
                 ],
               ),
             ),
@@ -466,6 +468,54 @@ class _SummaryRow extends StatelessWidget {
               fontWeight: FontWeight.w600),
         ),
       ],
+    );
+  }
+}
+
+/// Shown when an order has a delivery address but no pinned coordinates.
+/// Tapping opens Google Maps with the address as a search query.
+class _AddressMapButton extends StatelessWidget {
+  final String address;
+  const _AddressMapButton({required this.address});
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: () async {
+        final encoded = Uri.encodeComponent(address);
+        final uri = Uri.parse(
+          'https://www.google.com/maps/search/?api=1&query=$encoded',
+        );
+        if (await canLaunchUrl(uri)) {
+          await launchUrl(uri, mode: LaunchMode.externalApplication);
+        }
+      },
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+        decoration: BoxDecoration(
+          color: kBrand.withValues(alpha: 0.07),
+          border: Border.all(color: kBrand.withValues(alpha: 0.25)),
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: Row(
+          children: [
+            const Icon(Icons.map_outlined, color: kBrand, size: 18),
+            const SizedBox(width: 10),
+            const Expanded(
+              child: Text(
+                'View address on Google Maps',
+                style: TextStyle(
+                  color: kBrand,
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+            const Icon(Icons.open_in_new, color: kBrand, size: 14),
+          ],
+        ),
+      ),
     );
   }
 }

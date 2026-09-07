@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 import '../models/order.dart';
 import '../services/owner_repository.dart';
+import '../services/owner_notification_service.dart';
 
 enum OwnerOrdersLoadState { idle, loading, loaded, error }
 
@@ -83,6 +84,9 @@ class OwnerOrdersProvider extends ChangeNotifier {
           _state = OwnerOrdersLoadState.loaded;
           _error = null;
           notifyListeners();
+          // Trigger or silence the alarm based on current pending count
+          OwnerNotificationService.instance
+              .onPendingCountChanged(pendingCount);
         },
         onError: (Object e) {
           debugPrint('OwnerOrdersProvider stream error: $e');
@@ -108,6 +112,8 @@ class OwnerOrdersProvider extends ChangeNotifier {
     _state = OwnerOrdersLoadState.idle;
     _error = null;
     notifyListeners();
+    // Silence the alarm when the owner signs out
+    OwnerNotificationService.instance.onPendingCountChanged(0);
   }
 
   // ── Order status update ───────────────────────────────────────────────────

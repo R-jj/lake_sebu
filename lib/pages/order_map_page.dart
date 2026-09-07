@@ -108,6 +108,11 @@ class _OrderMapPageState extends State<OrderMapPage> {
                   zoomControlsEnabled: false,
                   myLocationButtonEnabled: false,
                   mapToolbarEnabled: false,
+                  zoomGesturesEnabled: true,
+                  scrollGesturesEnabled: true,
+                  rotateGesturesEnabled: true,
+                  tiltGesturesEnabled: true,
+                  liteModeEnabled: false,
                 ),
 
                 // ── Zoom / recenter controls ────────────────────────────
@@ -231,24 +236,54 @@ class OrderMapThumbnail extends StatelessWidget {
         borderRadius: BorderRadius.circular(12),
         child: SizedBox(
           height: 160,
-          child: GoogleMap(
-            initialCameraPosition: CameraPosition(
-              target: LatLng(lat, lng),
-              zoom: 15,
-            ),
-            markers: {
-              Marker(
-                markerId: const MarkerId('delivery'),
-                position: LatLng(lat, lng),
-                icon: BitmapDescriptor.defaultMarkerWithHue(
-                  BitmapDescriptor.hueRed,
+          child: Stack(
+            children: [
+              GoogleMap(
+                initialCameraPosition: CameraPosition(
+                  target: LatLng(lat, lng),
+                  zoom: 15,
+                ),
+                markers: {
+                  Marker(
+                    markerId: const MarkerId('delivery'),
+                    position: LatLng(lat, lng),
+                    icon: BitmapDescriptor.defaultMarkerWithHue(
+                      BitmapDescriptor.hueRed,
+                    ),
+                  ),
+                },
+                zoomControlsEnabled: false,
+                myLocationButtonEnabled: false,
+                mapToolbarEnabled: false,
+                liteModeEnabled: true,
+              ),
+              // Tap hint overlay
+              Positioned(
+                bottom: 8,
+                right: 10,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 4,
+                  ),
+                  decoration: BoxDecoration(
+                    color: Colors.black54,
+                    borderRadius: BorderRadius.circular(6),
+                  ),
+                  child: const Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(Icons.open_in_full, color: Colors.white, size: 11),
+                      SizedBox(width: 4),
+                      Text(
+                        'Tap to expand',
+                        style: TextStyle(color: Colors.white, fontSize: 10),
+                      ),
+                    ],
+                  ),
                 ),
               ),
-            },
-            zoomControlsEnabled: false,
-            myLocationButtonEnabled: false,
-            mapToolbarEnabled: false,
-            liteModeEnabled: true,
+            ],
           ),
         ),
       ),

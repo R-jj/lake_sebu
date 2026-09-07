@@ -1011,10 +1011,7 @@ class _Divider extends StatelessWidget {
 
 // ── _MapThumbnail ─────────────────────────────────────────────────────────────
 
-/// Lightweight embedded map showing the pinned restaurant location.
-///
-/// Uses [liteModeEnabled] on Android for static-like rendering without
-/// the full interactive map overhead.
+/// Static map thumbnail. Tap to open a full-screen interactive map.
 class _MapThumbnail extends StatelessWidget {
   final double lat;
   final double lng;
@@ -1025,30 +1022,152 @@ class _MapThumbnail extends StatelessWidget {
   Widget build(BuildContext context) {
     return Padding(
       padding: const EdgeInsets.only(top: 10),
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(12),
-        child: SizedBox(
-          height: 160,
-          child: GoogleMap(
-            initialCameraPosition: CameraPosition(
-              target: LatLng(lat, lng),
-              zoom: 15,
-            ),
-            markers: {
-              Marker(
-                markerId: const MarkerId('restaurant'),
-                position: LatLng(lat, lng),
-                icon: BitmapDescriptor.defaultMarkerWithHue(
-                  BitmapDescriptor.hueOrange,
-                ),
-              ),
-            },
-            zoomControlsEnabled: false,
-            myLocationButtonEnabled: false,
-            mapToolbarEnabled: false,
-            liteModeEnabled: true,
+      child: GestureDetector(
+        onTap: () => Navigator.of(context).push(
+          MaterialPageRoute(
+            builder: (_) => _FullMapPage(lat: lat, lng: lng),
           ),
         ),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(12),
+          child: SizedBox(
+            height: 160,
+            child: Stack(
+              children: [
+                GoogleMap(
+                  initialCameraPosition: CameraPosition(
+                    target: LatLng(lat, lng),
+                    zoom: 15,
+                  ),
+                  markers: {
+                    Marker(
+                      markerId: const MarkerId('restaurant'),
+                      position: LatLng(lat, lng),
+                      icon: BitmapDescriptor.defaultMarkerWithHue(
+                        BitmapDescriptor.hueOrange,
+                      ),
+                    ),
+                  },
+                  zoomControlsEnabled: false,
+                  myLocationButtonEnabled: false,
+                  mapToolbarEnabled: false,
+                  liteModeEnabled: true,
+                ),
+                // Overlay hint
+                Positioned(
+                  bottom: 8,
+                  right: 10,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 8, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: Colors.black54,
+                      borderRadius: BorderRadius.circular(6),
+                    ),
+                    child: const Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(Icons.open_in_full, color: Colors.white, size: 11),
+                        SizedBox(width: 4),
+                        Text(
+                          'Tap to expand',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 10,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// ── _FullMapPage ──────────────────────────────────────────────────────────────
+
+/// Full-screen interactive map showing the restaurant's pinned location.
+///
+/// Opened when the owner taps the map thumbnail in the read view.
+/// Supports full zoom, pan, and tilt gestures. Zoom controls are shown.
+class _FullMapPage extends StatefulWidget {
+  final double lat;
+  final double lng;
+
+  const _FullMapPage({required this.lat, required this.lng});
+
+  @override
+  State<_FullMapPage> createState() => _FullMapPageState();
+}
+
+class _FullMapPageState extends State<_FullMapPage> {
+  GoogleMapController? _controller;
+
+  @override
+  void dispose() {
+    _controller?.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final position = LatLng(widget.lat, widget.lng);
+
+    return Scaffold(
+      backgroundColor: kCanvas,
+      appBar: AppBar(
+        backgroundColor: kSurface,
+        foregroundColor: kInk,
+        elevation: 0,
+        title: Text(
+          'Restaurant Location',
+          style: kSerif.copyWith(
+            color: kInk,
+            fontSize: 18,
+            fontWeight: FontWeight.w700,
+          ),
+        ),
+        actions: [
+          // Recenter button
+          IconButton(
+            icon: const Icon(Icons.my_location, size: 20),
+            tooltip: 'Recenter',
+            onPressed: () => _controller?.animateCamera(
+              CameraUpdate.newCameraPosition(
+                CameraPosition(target: position, zoom: 16),
+              ),
+            ),
+          ),
+        ],
+      ),
+      body: GoogleMap(
+        initialCameraPosition: CameraPosition(
+          target: position,
+          zoom: 16,
+        ),
+        onMapCreated: (c) => _controller = c,
+        markers: {
+          Marker(
+            markerId: const MarkerId('restaurant'),
+            position: position,
+            icon: BitmapDescriptor.defaultMarkerWithHue(
+              BitmapDescriptor.hueOrange,
+            ),
+          ),
+        },
+        zoomControlsEnabled: true,
+        myLocationButtonEnabled: false,
+        mapToolbarEnabled: true,
+        zoomGesturesEnabled: true,
+        scrollGesturesEnabled: true,
+        rotateGesturesEnabled: true,
+        tiltGesturesEnabled: true,
+        liteModeEnabled: false,
       ),
     );
   }
@@ -1475,6 +1594,7 @@ class _EditViewState extends State<_EditView> {
         widget.onSaved({...widget.initialData, ...updatedFields});
       }
     } catch (e) {
+      debugPrint('_EditView._save error: $e');
       if (mounted) {
         setState(() {
           _isSaving = false;

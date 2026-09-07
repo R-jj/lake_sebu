@@ -81,13 +81,24 @@ service cloud.firestore {
                         || request.resource.data.role == 'customer')
                     && !('restaurantId' in request.resource.data);
 
-      // Update: owner only; uid, createdAt, role, and restaurantId are
-      // immutable from the client.
+      // Update: owner only; uid, createdAt, and role are immutable from
+      // the client.  restaurantId may be set once (when it is currently absent
+      // or null) by the owner — this covers the restaurant setup flow where
+      // linkRestaurantToOwner writes the new ID to the profile.  After the
+      // first write it is treated as immutable (cannot be changed to a
+      // different restaurant).
       allow update: if isOwner(uid)
                     && fieldNotChanged('uid')
                     && fieldNotChanged('createdAt')
                     && fieldNotChanged('role')
-                    && fieldNotChanged('restaurantId')
+                    && (
+                         fieldNotChanged('restaurantId')
+                         || (
+                              // Allow setting restaurantId for the first time only.
+                              !('restaurantId' in resource.data)
+                              || resource.data.restaurantId == null
+                            )
+                       )
                     && (
                          fieldNotChanged('phoneNumberVerified')
                          || request.resource.data.phoneNumberVerified == false
@@ -222,8 +233,16 @@ service cloud.firestore {
     // Any authenticated user (customer or owner) can read restaurants.
     match /restaurants/{docId} {
       allow read: if isAuthenticated();
-      // Writes to restaurants are admin-only (Firebase Console / Admin SDK).
-      // No client write rules are provided here.
+
+      // Restaurant owners can update their own restaurant document.
+      // The ownerRestaurantId() check ensures the caller's profile
+      // restaurantId matches the document being updated — never trusted
+      // from the client.
+      allow update: if isRestaurantOwner()
+                    && ownerRestaurantId() == docId
+                    && fieldNotChanged('createdAt');
+
+      // Create and delete remain admin-only (Firebase Console / Admin SDK).
     }
 
     match /menu_items/{docId} {

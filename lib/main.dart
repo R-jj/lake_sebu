@@ -13,12 +13,14 @@ import 'providers/owner_menu_provider.dart';
 import 'pages/sign_in_page.dart';
 import 'pages/profile_completion_gate.dart';
 import 'pages/owner/owner_root_shell.dart';
+import 'services/owner_notification_service.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await Firebase.initializeApp(
     options: DefaultFirebaseOptions.currentPlatform,
   );
+  await OwnerNotificationService.instance.init();
   runApp(
     MultiProvider(
       providers: [
