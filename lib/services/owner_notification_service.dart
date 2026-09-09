@@ -41,7 +41,7 @@ class OwnerNotificationService {
 
     const android = AndroidInitializationSettings('@mipmap/ic_launcher');
     const initSettings = InitializationSettings(android: android);
-    await _plugin.initialize(initSettings);
+    await _plugin.initialize(settings: initSettings);
 
     // Create the high-priority alarm channel
     const channel = AndroidNotificationChannel(
@@ -87,7 +87,7 @@ class OwnerNotificationService {
 
     // Start looping sound — silently ignore if asset not yet added
     try {
-      await _player.play(AssetSource('sounds/order_alarm.mp3'));
+      await _player.play(AssetSource('sounds/mixkit-urgent-simple-tone-loop-2976.wav'));
     } catch (e) {
       debugPrint('OwnerNotificationService: could not play alarm sound: $e');
       // Vibration + notification still work even without the audio asset
@@ -99,7 +99,7 @@ class OwnerNotificationService {
   Future<void> _stopAlarm() async {
     _alarmActive = false;
     await _player.stop();
-    await _plugin.cancel(_notificationId);
+    await _plugin.cancel(id: _notificationId);
   }
 
   Future<void> _updateNotification(int pendingCount) async {
@@ -131,10 +131,10 @@ class OwnerNotificationService {
     );
 
     await _plugin.show(
-      _notificationId,
-      '🔔 New Order${pendingCount > 1 ? 's' : ''}',
-      body,
-      NotificationDetails(android: androidDetails),
+      id: _notificationId,
+      title: '🔔 New Order${pendingCount > 1 ? 's' : ''}',
+      body: body,
+      notificationDetails: NotificationDetails(android: androidDetails),
     );
   }
 

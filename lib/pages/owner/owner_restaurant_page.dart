@@ -5,7 +5,9 @@ import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:provider/provider.dart';
 import '../../constants.dart';
 import '../../providers/auth_provider.dart';
+import '../../services/menu_image_service.dart';
 import '../../services/owner_repository.dart';
+import '../../widgets/menu_image_picker.dart';
 import '../../utils/restaurant_form_helpers.dart';
 import '../map_picker_page.dart';
 
@@ -291,7 +293,7 @@ class _RestaurantBody extends StatelessWidget {
                 height: 180,
                 width: double.infinity,
                 fit: BoxFit.cover,
-                errorBuilder: (_, __, ___) => Container(
+                errorBuilder: (_, _, _) => Container(
                   height: 180,
                   decoration: BoxDecoration(
                     color: kSurface2,
@@ -632,108 +634,31 @@ class _CuisineSelector extends StatelessWidget {
   }
 }
 
-// ── Task 4.3: _ImagePreviewField ──────────────────────────────────────────────
+// ── Task 4.3: _RestaurantImagePickerField ────────────────────────────────────
 
-/// Text field for an image URL with a debounced live preview below.
+/// Thin wrapper around [MenuImagePicker] for the restaurant banner slot.
 ///
-/// Owns a 600 ms debounce timer. When the user pauses typing, `_previewUrl` is
-/// updated and a `Image.network` preview (max 200 px height, full width) is
-/// shown. An `errorBuilder` displays `Icons.broken_image_outlined` at the same
-/// dimensions when the network image fails to load. Nothing is shown when the
-/// URL field is empty.
-///
-/// Validation: rejects non-empty strings that fail `isValidImageUrl`; empty
-/// strings are accepted (image is optional).
-class _ImagePreviewField extends StatefulWidget {
-  final TextEditingController controller;
-  final bool enabled;
-  final String? Function(String?)? validator;
-  final TextInputAction textInputAction;
+/// Stateless — state is owned by the parent form via [state]/[onChanged].
+/// Mirrors the image slot pattern used in [OwnerAddEditMenuItemPage].
+class _RestaurantImagePickerField extends StatelessWidget {
+  final ImageSlotState state;
+  final bool isUploading;
+  final ValueChanged<ImageSlotState> onChanged;
 
-  const _ImagePreviewField({
-    required this.controller,
-    required this.textInputAction,
-    this.enabled = true,
-    this.validator, // ignore: unused_element_parameter
+  const _RestaurantImagePickerField({
+    required this.state,
+    required this.isUploading,
+    required this.onChanged,
   });
 
   @override
-  State<_ImagePreviewField> createState() => _ImagePreviewFieldState();
-}
-
-class _ImagePreviewFieldState extends State<_ImagePreviewField> {
-  Timer? _debounce;
-  String? _previewUrl;
-
-  @override
-  void initState() {
-    super.initState();
-    widget.controller.addListener(_onTextChanged);
-  }
-
-  @override
-  void dispose() {
-    _debounce?.cancel();
-    widget.controller.removeListener(_onTextChanged);
-    super.dispose();
-  }
-
-  void _onTextChanged() {
-    _debounce?.cancel();
-    _debounce = Timer(const Duration(milliseconds: 600), () {
-      final text = widget.controller.text.trim();
-      if (mounted) {
-        setState(() => _previewUrl = text.isNotEmpty ? text : null);
-      }
-    });
-  }
-
-  String? _defaultValidator(String? value) {
-    if (value == null || value.trim().isEmpty) return null; // optional field
-    if (!isValidImageUrl(value.trim())) return 'Enter a valid http/https URL';
-    return null;
-  }
-
-  @override
   Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        _RestaurantFormField(
-          controller: widget.controller,
-          label: 'Image URL',
-          hint: 'https://example.com/image.jpg',
-          textInputAction: widget.textInputAction,
-          enabled: widget.enabled,
-          keyboardType: TextInputType.url,
-          validator: widget.validator ?? _defaultValidator,
-        ),
-        if (_previewUrl != null) ...[
-          const SizedBox(height: 10),
-          ClipRRect(
-            borderRadius: BorderRadius.circular(12),
-            child: Image.network(
-              _previewUrl!,
-              height: 200,
-              width: double.infinity,
-              fit: BoxFit.cover,
-              errorBuilder: (_, __, ___) => Container(
-                height: 200,
-                width: double.infinity,
-                decoration: BoxDecoration(
-                  color: kSurface2,
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: const Icon(
-                  Icons.broken_image_outlined,
-                  color: kMuted,
-                  size: 40,
-                ),
-              ),
-            ),
-          ),
-        ],
-      ],
+    return MenuImagePicker.withHint(
+      label: 'Restaurant Image',
+      state: state,
+      isUploading: isUploading,
+      onChanged: onChanged,
+      hint: 'Tap to add a photo from your gallery or camera',
     );
   }
 }
@@ -1231,14 +1156,17 @@ class _SetupViewState extends State<_SetupView> {
 
   final _nameCtrl = TextEditingController();
   final _descCtrl = TextEditingController();
-  final _imageUrlCtrl = TextEditingController();
   final _openTimeCtrl = TextEditingController();
   final _phoneCtrl = TextEditingController();
   final _addressCtrl = TextEditingController();
 
   String? _selectedCuisine;
   bool _isSaving = false;
+  bool _isUploading = false;
   String? _errorMessage;
+
+  // Image slot — picker state, no upload until submit
+  ImageSlotState _imageSlot = const ImageSlotState();
 
   // Location state
   double? _lat;
@@ -1253,7 +1181,6 @@ class _SetupViewState extends State<_SetupView> {
   void dispose() {
     _nameCtrl.dispose();
     _descCtrl.dispose();
-    _imageUrlCtrl.dispose();
     _openTimeCtrl.dispose();
     _phoneCtrl.dispose();
     _addressCtrl.dispose();
@@ -1275,8 +1202,6 @@ class _SetupViewState extends State<_SetupView> {
           'cuisine': _selectedCuisine!,
           if (_descCtrl.text.trim().isNotEmpty)
             'description': _descCtrl.text.trim(),
-          if (_imageUrlCtrl.text.trim().isNotEmpty)
-            'img': _imageUrlCtrl.text.trim(),
           if (_openTimeCtrl.text.trim().isNotEmpty)
             'openTime': _openTimeCtrl.text.trim(),
           if (_phoneCtrl.text.trim().isNotEmpty)
@@ -1297,6 +1222,32 @@ class _SetupViewState extends State<_SetupView> {
             });
           }
           return;
+        }
+      }
+
+      // Step 1b: Upload banner image (if one was picked)
+      String? uploadedImgUrl;
+      if (_imageSlot.hasPendingUpload) {
+        setState(() => _isUploading = true);
+        try {
+          final result =
+              await MenuImageService.instance.uploadRestaurantBanner(
+            rawBytes: _imageSlot.pendingBytes!,
+            mimeType: _imageSlot.pendingMimeType!,
+            restaurantId: _pendingRestaurantId!,
+          );
+          uploadedImgUrl = result.publicUrl;
+          // Patch the Firestore document with the image URL
+          await OwnerRepository.instance.updateRestaurant(
+            _pendingRestaurantId!,
+            {'img': uploadedImgUrl},
+          );
+        } catch (e) {
+          // Non-fatal: restaurant is created, image failed — surface a warning
+          // but don't block the setup flow.
+          debugPrint('_SetupView: banner upload failed: $e');
+        } finally {
+          if (mounted) setState(() => _isUploading = false);
         }
       }
 
@@ -1326,8 +1277,7 @@ class _SetupViewState extends State<_SetupView> {
         'cuisine': _selectedCuisine!,
         if (_descCtrl.text.trim().isNotEmpty)
           'description': _descCtrl.text.trim(),
-        if (_imageUrlCtrl.text.trim().isNotEmpty)
-          'img': _imageUrlCtrl.text.trim(),
+        'img': ?uploadedImgUrl,
         if (_openTimeCtrl.text.trim().isNotEmpty)
           'openTime': _openTimeCtrl.text.trim(),
         if (_phoneCtrl.text.trim().isNotEmpty)
@@ -1411,10 +1361,10 @@ class _SetupViewState extends State<_SetupView> {
                   enabled: !_isSaving,
                 ),
                 const SizedBox(height: 16),
-                _ImagePreviewField(
-                  controller: _imageUrlCtrl,
-                  enabled: !_isSaving,
-                  textInputAction: TextInputAction.next,
+                _RestaurantImagePickerField(
+                  state: _imageSlot,
+                  isUploading: _isUploading,
+                  onChanged: (s) => setState(() => _imageSlot = s),
                 ),
                 const SizedBox(height: 16),
                 _RestaurantFormField(
@@ -1452,10 +1402,8 @@ class _SetupViewState extends State<_SetupView> {
                     _lat = lat;
                     _lng = lng;
                     _locationAddress = addr;
-                    // Auto-fill address text field if empty
-                    if (_addressCtrl.text.trim().isEmpty) {
-                      _addressCtrl.text = addr;
-                    }
+                    // Always fill the address field from the map pin
+                    if (addr.isNotEmpty) _addressCtrl.text = addr;
                   }),
                   onClear: () => setState(() {
                     _lat = null;
@@ -1466,8 +1414,8 @@ class _SetupViewState extends State<_SetupView> {
                 const SizedBox(height: 28),
                 _FormActionButton(
                   label: 'Create Restaurant',
-                  isLoading: _isSaving,
-                  onTap: _isSaving ? null : _submit,
+                  isLoading: _isSaving || _isUploading,
+                  onTap: (_isSaving || _isUploading) ? null : _submit,
                 ),
               ],
             ),
@@ -1504,14 +1452,17 @@ class _EditViewState extends State<_EditView> {
 
   late final TextEditingController _nameCtrl;
   late final TextEditingController _descCtrl;
-  late final TextEditingController _imageUrlCtrl;
   late final TextEditingController _openTimeCtrl;
   late final TextEditingController _phoneCtrl;
   late final TextEditingController _addressCtrl;
 
   String? _selectedCuisine;
   bool _isSaving = false;
+  bool _isUploading = false;
   String? _errorMessage;
+
+  // Image slot — holds existing URL on open; pendingBytes when a new pick is made
+  late ImageSlotState _imageSlot;
 
   // Location state
   double? _lat;
@@ -1524,7 +1475,6 @@ class _EditViewState extends State<_EditView> {
     final d = widget.initialData;
     _nameCtrl = TextEditingController(text: d['name'] as String? ?? '');
     _descCtrl = TextEditingController(text: d['description'] as String? ?? '');
-    _imageUrlCtrl = TextEditingController(text: d['img'] as String? ?? '');
     _openTimeCtrl = TextEditingController(text: d['openTime'] as String? ?? '');
     _phoneCtrl = TextEditingController(text: d['phone'] as String? ?? '');
     _addressCtrl = TextEditingController(text: d['address'] as String? ?? '');
@@ -1533,13 +1483,14 @@ class _EditViewState extends State<_EditView> {
     _lng = (d['lng'] as num?)?.toDouble();
     // Use stored address as display label; a re-pin will update it
     _locationAddress = d['address'] as String?;
+    // Pre-fill image slot with the existing banner URL (if any)
+    _imageSlot = ImageSlotState(existingUrl: d['img'] as String?);
   }
 
   @override
   void dispose() {
     _nameCtrl.dispose();
     _descCtrl.dispose();
-    _imageUrlCtrl.dispose();
     _openTimeCtrl.dispose();
     _phoneCtrl.dispose();
     _addressCtrl.dispose();
@@ -1555,43 +1506,82 @@ class _EditViewState extends State<_EditView> {
 
     final restaurantId = widget.initialData['id'] as String? ?? '';
 
-    final updatedFields = {
-      'name': _nameCtrl.text.trim(),
-      'cuisine': _selectedCuisine ?? '',
-      'description': _descCtrl.text.trim(),
-      'img': _imageUrlCtrl.text.trim(),
-      'openTime': _openTimeCtrl.text.trim(),
-      'phone': _phoneCtrl.text.trim(),
-      'address': _addressCtrl.text.trim(),
-      'lat': _lat,
-      'lng': _lng,
-    };
-
-    // Normalise original values to empty string for direct comparison
-    final originalNormalised = {
-      'name': widget.initialData['name'] as String? ?? '',
-      'cuisine': widget.initialData['cuisine'] as String? ?? '',
-      'description': widget.initialData['description'] as String? ?? '',
-      'img': widget.initialData['img'] as String? ?? '',
-      'openTime': widget.initialData['openTime'] as String? ?? '',
-      'phone': widget.initialData['phone'] as String? ?? '',
-      'address': widget.initialData['address'] as String? ?? '',
-      'lat': (widget.initialData['lat'] as num?)?.toDouble(),
-      'lng': (widget.initialData['lng'] as num?)?.toDouble(),
-    };
-
-    final diff = computeDiff(originalNormalised, updatedFields);
-
-    if (diff.isEmpty) {
-      // No changes — skip Firestore write
-      widget.onSaved({...widget.initialData, ...updatedFields});
-      return;
-    }
-
     try {
+      // ── Image: upload new banner or clear existing ─────────────────────
+      String? resolvedImgUrl = _imageSlot.existingUrl;
+
+      if (_imageSlot.hasPendingUpload) {
+        // Upload the newly picked image
+        setState(() => _isUploading = true);
+        try {
+          final result =
+              await MenuImageService.instance.uploadRestaurantBanner(
+            rawBytes: _imageSlot.pendingBytes!,
+            mimeType: _imageSlot.pendingMimeType!,
+            restaurantId: restaurantId,
+          );
+          resolvedImgUrl = result.publicUrl;
+        } finally {
+          if (mounted) setState(() => _isUploading = false);
+        }
+      } else if (_imageSlot.markedForRemoval) {
+        // Owner removed the existing image
+        final oldUrl = widget.initialData['img'] as String? ?? '';
+        if (oldUrl.isNotEmpty) {
+          final key = MenuImageService.instance.objectKeyFromUrl(oldUrl);
+          if (key != null) {
+            // Best-effort delete — don't block save on failure
+            MenuImageService.instance.deleteImage(key).catchError(
+              (e) => debugPrint('_EditView: banner delete failed: $e'),
+            );
+          }
+        }
+        resolvedImgUrl = null;
+      }
+
+      // ── Build diff and Firestore write ────────────────────────────────
+      final updatedFields = {
+        'name': _nameCtrl.text.trim(),
+        'cuisine': _selectedCuisine ?? '',
+        'description': _descCtrl.text.trim(),
+        'img': resolvedImgUrl ?? '',
+        'openTime': _openTimeCtrl.text.trim(),
+        'phone': _phoneCtrl.text.trim(),
+        'address': _addressCtrl.text.trim(),
+        'lat': _lat,
+        'lng': _lng,
+      };
+
+      final originalNormalised = {
+        'name': widget.initialData['name'] as String? ?? '',
+        'cuisine': widget.initialData['cuisine'] as String? ?? '',
+        'description': widget.initialData['description'] as String? ?? '',
+        'img': widget.initialData['img'] as String? ?? '',
+        'openTime': widget.initialData['openTime'] as String? ?? '',
+        'phone': widget.initialData['phone'] as String? ?? '',
+        'address': widget.initialData['address'] as String? ?? '',
+        'lat': (widget.initialData['lat'] as num?)?.toDouble(),
+        'lng': (widget.initialData['lng'] as num?)?.toDouble(),
+      };
+
+      final diff = computeDiff(originalNormalised, updatedFields);
+
+      if (diff.isEmpty) {
+        widget.onSaved({...widget.initialData, ...updatedFields});
+        return;
+      }
+
       await OwnerRepository.instance.updateRestaurant(restaurantId, diff);
       if (mounted) {
         widget.onSaved({...widget.initialData, ...updatedFields});
+      }
+    } on MenuImageException catch (e) {
+      if (mounted) {
+        setState(() {
+          _isSaving = false;
+          _isUploading = false;
+          _errorMessage = e.userMessage;
+        });
       }
     } catch (e) {
       debugPrint('_EditView._save error: $e');
@@ -1678,10 +1668,10 @@ class _EditViewState extends State<_EditView> {
                   enabled: !_isSaving,
                 ),
                 const SizedBox(height: 16),
-                _ImagePreviewField(
-                  controller: _imageUrlCtrl,
-                  enabled: !_isSaving,
-                  textInputAction: TextInputAction.next,
+                _RestaurantImagePickerField(
+                  state: _imageSlot,
+                  isUploading: _isUploading,
+                  onChanged: (s) => setState(() => _imageSlot = s),
                 ),
                 const SizedBox(height: 16),
                 _RestaurantFormField(
@@ -1719,10 +1709,8 @@ class _EditViewState extends State<_EditView> {
                     _lat = lat;
                     _lng = lng;
                     _locationAddress = addr;
-                    // Auto-fill address text field if empty
-                    if (_addressCtrl.text.trim().isEmpty) {
-                      _addressCtrl.text = addr;
-                    }
+                    // Always fill the address field from the map pin
+                    if (addr.isNotEmpty) _addressCtrl.text = addr;
                   }),
                   onClear: () => setState(() {
                     _lat = null;
@@ -1733,8 +1721,8 @@ class _EditViewState extends State<_EditView> {
                 const SizedBox(height: 28),
                 _FormActionButton(
                   label: 'Save Changes',
-                  isLoading: _isSaving,
-                  onTap: _isSaving ? null : _save,
+                  isLoading: _isSaving || _isUploading,
+                  onTap: (_isSaving || _isUploading) ? null : _save,
                 ),
               ],
             ),

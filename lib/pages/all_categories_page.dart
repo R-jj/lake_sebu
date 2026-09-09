@@ -136,7 +136,6 @@ class _AllCategoriesPageState extends State<AllCategoriesPage> {
                           data: filtered[i],
                           onTap: () {
                             widget.onSelectCategory(filtered[i]['label'] as String);
-                            widget.onBack();
                           },
                         ),
                       ),

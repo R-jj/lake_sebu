@@ -183,7 +183,7 @@ class _AllDishesPageState extends State<AllDishesPage> {
                             padding: EdgeInsets.fromLTRB(20, 0, 20, widget.cartCount > 0 ? 96 : 28),
                             physics: const BouncingScrollPhysics(),
                             itemCount: visibleItems.length + (hasMore ? 1 : 0),
-                            separatorBuilder: (_, __) => const SizedBox(height: 12),
+                            separatorBuilder: (_, _) => const SizedBox(height: 12),
                             itemBuilder: (context, i) {
                               if (i == visibleItems.length) {
                                 return const Padding(
@@ -273,7 +273,7 @@ class _AllDishesPageState extends State<AllDishesPage> {
         padding: const EdgeInsets.symmetric(horizontal: 20),
         physics: const BouncingScrollPhysics(),
         itemCount: tabs.length,
-        separatorBuilder: (_, __) => const SizedBox(width: 8),
+        separatorBuilder: (_, _) => const SizedBox(width: 8),
         itemBuilder: (context, i) {
           final tab = tabs[i]; // Use the passed-in list
           final active = _filter == tab;
@@ -313,7 +313,7 @@ class _AllDishesPageState extends State<AllDishesPage> {
         padding: const EdgeInsets.symmetric(horizontal: 20),
         physics: const BouncingScrollPhysics(),
         itemCount: _kSortOptions.length,
-        separatorBuilder: (_, __) => const SizedBox(width: 8),
+        separatorBuilder: (_, _) => const SizedBox(width: 8),
         itemBuilder: (context, i) {
           final opt = _kSortOptions[i];
           final active = _sort == opt;

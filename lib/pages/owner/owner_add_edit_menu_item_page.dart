@@ -41,6 +41,10 @@ class _OwnerAddEditMenuItemPageState extends State<OwnerAddEditMenuItemPage> {
   late final TextEditingController _categoryCtrl;
   bool _isAvailable = true;
 
+  // ── Extras (add-ons) ───────────────────────────────────────────────────────
+  // Each entry: {'label': String, 'price': double}
+  late List<Map<String, dynamic>> _extras;
+
   // ── Image slots ────────────────────────────────────────────────────────────
 
   late ImageSlotState _mainImage;
@@ -73,6 +77,18 @@ class _OwnerAddEditMenuItemPageState extends State<OwnerAddEditMenuItemPage> {
     _categoryCtrl =
         TextEditingController(text: item?['category'] as String? ?? '');
     _isAvailable = item?['isAvailable'] as bool? ?? true;
+
+    // Pre-fill extras from existing item
+    final rawExtras = item?['extras'];
+    _extras = (rawExtras is List)
+        ? rawExtras
+            .whereType<Map>()
+            .map((e) => {
+                  'label': e['label'] as String? ?? '',
+                  'price': (e['price'] as num?)?.toDouble() ?? 0.0,
+                })
+            .toList()
+        : [];
 
     // Pre-fill image slots with existing URLs
     _mainImage = ImageSlotState(existingUrl: item?['img'] as String?);
@@ -120,6 +136,7 @@ class _OwnerAddEditMenuItemPageState extends State<OwnerAddEditMenuItemPage> {
           price: price,
           category: category,
           isAvailable: _isAvailable,
+          extras: _extras,
           mainImageBytes: _mainImage.pendingBytes,
           mainImageMimeType: _mainImage.pendingMimeType,
           heroImageBytes: _heroImage.pendingBytes,
@@ -149,6 +166,7 @@ class _OwnerAddEditMenuItemPageState extends State<OwnerAddEditMenuItemPage> {
             price: price,
             category: category,
             isAvailable: _isAvailable,
+            extras: _extras,
           );
         }
 
@@ -223,11 +241,30 @@ class _OwnerAddEditMenuItemPageState extends State<OwnerAddEditMenuItemPage> {
     if (!widget.isEditing) return true;
     final item = widget.existingItem!;
     final priceVal = double.tryParse(_priceCtrl.text.trim()) ?? 0.0;
+
+    // Compare extras lists structurally
+    final rawExtras = item['extras'];
+    final originalExtras = (rawExtras is List)
+        ? rawExtras
+            .whereType<Map>()
+            .map((e) => {
+                  'label': e['label'] as String? ?? '',
+                  'price': (e['price'] as num?)?.toDouble() ?? 0.0,
+                })
+            .toList()
+        : <Map<String, dynamic>>[];
+    final extrasChanged = _extras.length != originalExtras.length ||
+        List.generate(_extras.length, (i) {
+          return _extras[i]['label'] != originalExtras[i]['label'] ||
+              _extras[i]['price'] != originalExtras[i]['price'];
+        }).any((changed) => changed);
+
     return _nameCtrl.text.trim() != (item['name'] as String? ?? '') ||
         _descCtrl.text.trim() != (item['description'] as String? ?? '') ||
         priceVal != (item['price'] as num?)?.toDouble() ||
         _categoryCtrl.text.trim() != (item['category'] as String? ?? '') ||
-        _isAvailable != (item['isAvailable'] as bool? ?? true);
+        _isAvailable != (item['isAvailable'] as bool? ?? true) ||
+        extrasChanged;
   }
 
   // ── UI ─────────────────────────────────────────────────────────────────────
@@ -360,6 +397,15 @@ class _OwnerAddEditMenuItemPageState extends State<OwnerAddEditMenuItemPage> {
                   value: _isAvailable,
                   enabled: !isUploading,
                   onChanged: (v) => setState(() => _isAvailable = v),
+                ),
+                const SizedBox(height: 24),
+
+                // ── Extras (add-ons) ───────────────────────────────────────
+                _ExtrasEditor(
+                  extras: _extras,
+                  enabled: !isUploading,
+                  onChanged: (updated) =>
+                      setState(() => _extras = updated),
                 ),
                 const SizedBox(height: 32),
 
@@ -528,7 +574,7 @@ class _CategoryField extends StatelessWidget {
           child: ListView.separated(
             scrollDirection: Axis.horizontal,
             itemCount: categories.length,
-            separatorBuilder: (_, __) => const SizedBox(width: 6),
+            separatorBuilder: (_, _) => const SizedBox(width: 6),
             itemBuilder: (_, i) {
               final cat = categories[i];
               final selected = controller.text.trim() == cat;
@@ -698,6 +744,280 @@ class _SaveButton extends StatelessWidget {
                     fontSize: 13,
                     fontWeight: FontWeight.w700)),
       ),
+    );
+  }
+}
+
+// ── Extras editor ─────────────────────────────────────────────────────────────
+
+/// Inline list editor for menu item add-ons.
+///
+/// Each row has a label text field and a price field. The owner can add
+/// unlimited extras and remove any of them. Matches the `{label, price}`
+/// schema consumed by [MenuDetailPage].
+class _ExtrasEditor extends StatefulWidget {
+  final List<Map<String, dynamic>> extras;
+  final bool enabled;
+  final ValueChanged<List<Map<String, dynamic>>> onChanged;
+
+  const _ExtrasEditor({
+    required this.extras,
+    required this.enabled,
+    required this.onChanged,
+  });
+
+  @override
+  State<_ExtrasEditor> createState() => _ExtrasEditorState();
+}
+
+class _ExtrasEditorState extends State<_ExtrasEditor> {
+  // One controller pair per row
+  late final List<TextEditingController> _labelCtrls;
+  late final List<TextEditingController> _priceCtrls;
+
+  @override
+  void initState() {
+    super.initState();
+    _labelCtrls = widget.extras
+        .map((e) => TextEditingController(text: e['label'] as String? ?? ''))
+        .toList();
+    _priceCtrls = widget.extras
+        .map((e) {
+          final p = (e['price'] as num?)?.toDouble() ?? 0.0;
+          return TextEditingController(text: p > 0 ? p.toStringAsFixed(2) : '');
+        })
+        .toList();
+  }
+
+  @override
+  void dispose() {
+    for (final c in _labelCtrls) { c.dispose(); }
+    for (final c in _priceCtrls) { c.dispose(); }
+    super.dispose();
+  }
+
+  List<Map<String, dynamic>> _build() {
+    return List.generate(_labelCtrls.length, (i) {
+      return {
+        'label': _labelCtrls[i].text.trim(),
+        'price': double.tryParse(_priceCtrls[i].text.trim()) ?? 0.0,
+      };
+    });
+  }
+
+  void _notify() => widget.onChanged(_build());
+
+  void _addRow() {
+    setState(() {
+      _labelCtrls.add(TextEditingController());
+      _priceCtrls.add(TextEditingController());
+    });
+    _notify();
+  }
+
+  void _removeRow(int i) {
+    setState(() {
+      _labelCtrls[i].dispose();
+      _priceCtrls[i].dispose();
+      _labelCtrls.removeAt(i);
+      _priceCtrls.removeAt(i);
+    });
+    _notify();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // Header row
+        Row(
+          children: [
+            Text(
+              'Add-ons  (optional)',
+              style: kSerif.copyWith(
+                color: kInk,
+                fontSize: 16,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+            const Spacer(),
+            if (widget.enabled)
+              GestureDetector(
+                onTap: _addRow,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: 10, vertical: 5),
+                  decoration: BoxDecoration(
+                    color: kBrand.withAlpha(25),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: const [
+                      Icon(Icons.add, color: kBrand, size: 14),
+                      SizedBox(width: 4),
+                      Text(
+                        'Add',
+                        style: TextStyle(
+                          color: kBrand,
+                          fontSize: 13,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+          ],
+        ),
+        const SizedBox(height: 4),
+        const Text(
+          'Optional extras customers can add to their order.',
+          style: TextStyle(color: kMuted, fontSize: 12),
+        ),
+        const SizedBox(height: 12),
+
+        // Empty state
+        if (_labelCtrls.isEmpty)
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.symmetric(vertical: 16),
+            decoration: BoxDecoration(
+              color: kSurface,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: kBorder),
+            ),
+            child: const Column(
+              children: [
+                Icon(Icons.add_circle_outline, color: kMuted, size: 24),
+                SizedBox(height: 6),
+                Text(
+                  'No add-ons yet',
+                  style: TextStyle(color: kMuted, fontSize: 13),
+                ),
+              ],
+            ),
+          ),
+
+        // Rows
+        ...List.generate(_labelCtrls.length, (i) {
+          return Padding(
+            padding: const EdgeInsets.only(bottom: 8),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Label field
+                Expanded(
+                  flex: 5,
+                  child: TextFormField(
+                    controller: _labelCtrls[i],
+                    enabled: widget.enabled,
+                    onChanged: (_) => _notify(),
+                    style:
+                        const TextStyle(color: kInk, fontSize: 14),
+                    decoration: InputDecoration(
+                      hintText: 'e.g. Extra Cheese',
+                      hintStyle: const TextStyle(
+                          color: kMuted, fontSize: 13),
+                      filled: true,
+                      fillColor: kSurface,
+                      contentPadding: const EdgeInsets.symmetric(
+                          horizontal: 12, vertical: 10),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(10),
+                        borderSide:
+                            const BorderSide(color: kBorder),
+                      ),
+                      enabledBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(10),
+                        borderSide:
+                            const BorderSide(color: kBorder),
+                      ),
+                      focusedBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(10),
+                        borderSide:
+                            const BorderSide(color: kBrand),
+                      ),
+                      disabledBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(10),
+                        borderSide: BorderSide(
+                            color: kBorder.withAlpha(100)),
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 8),
+
+                // Price field
+                Expanded(
+                  flex: 3,
+                  child: TextFormField(
+                    controller: _priceCtrls[i],
+                    enabled: widget.enabled,
+                    onChanged: (_) => _notify(),
+                    keyboardType: const TextInputType.numberWithOptions(
+                        decimal: true),
+                    inputFormatters: [
+                      FilteringTextInputFormatter.allow(
+                          RegExp(r'^\d+\.?\d{0,2}')),
+                    ],
+                    style:
+                        const TextStyle(color: kInk, fontSize: 14),
+                    decoration: InputDecoration(
+                      hintText: '₱0.00',
+                      hintStyle: const TextStyle(
+                          color: kMuted, fontSize: 13),
+                      filled: true,
+                      fillColor: kSurface,
+                      contentPadding: const EdgeInsets.symmetric(
+                          horizontal: 12, vertical: 10),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(10),
+                        borderSide:
+                            const BorderSide(color: kBorder),
+                      ),
+                      enabledBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(10),
+                        borderSide:
+                            const BorderSide(color: kBorder),
+                      ),
+                      focusedBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(10),
+                        borderSide:
+                            const BorderSide(color: kBrand),
+                      ),
+                      disabledBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(10),
+                        borderSide: BorderSide(
+                            color: kBorder.withAlpha(100)),
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 4),
+
+                // Remove button
+                if (widget.enabled)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 2),
+                    child: IconButton(
+                      onPressed: () => _removeRow(i),
+                      icon: const Icon(Icons.close,
+                          size: 16, color: kMuted),
+                      constraints: const BoxConstraints(
+                          minWidth: 32, minHeight: 40),
+                      padding: EdgeInsets.zero,
+                      splashRadius: 16,
+                    ),
+                  )
+                else
+                  const SizedBox(width: 36),
+              ],
+            ),
+          );
+        }),
+      ],
     );
   }
 }

@@ -19,7 +19,7 @@ enum AuthStatus { unknown, authenticated, unauthenticated }
 ///   profile-completion flow when required information is missing.
 class AppAuthProvider extends ChangeNotifier {
   final FirebaseAuth _auth = FirebaseAuth.instance;
-  final GoogleSignIn _googleSignIn = GoogleSignIn();
+  final GoogleSignIn _googleSignIn = GoogleSignIn.instance;
   final UserRepository _repo = UserRepository.instance;
 
   AppUser? _user;
@@ -223,14 +223,9 @@ class AppAuthProvider extends ChangeNotifier {
     _setError(null);
     _setLoading(true);
     try {
-      final googleUser = await _googleSignIn.signIn();
-      if (googleUser == null) {
-        _setLoading(false);
-        return false;
-      }
-      final googleAuth = await googleUser.authentication;
+      final googleUser = await _googleSignIn.authenticate();
+      final googleAuth = googleUser.authentication;
       final credential = GoogleAuthProvider.credential(
-        accessToken: googleAuth.accessToken,
         idToken: googleAuth.idToken,
       );
       final result = await _auth.signInWithCredential(credential);
@@ -299,7 +294,7 @@ class AppAuthProvider extends ChangeNotifier {
   Future<void> signOut() async {
     await Future.wait([
       _auth.signOut(),
-      if (_googleSignIn.currentUser != null) _googleSignIn.signOut(),
+      _googleSignIn.signOut(),
     ]);
   }
 
@@ -351,11 +346,9 @@ class AppAuthProvider extends ChangeNotifier {
           .any((p) => p.providerId == 'google.com');
 
       if (isGoogle) {
-        final googleUser = await _googleSignIn.signIn();
-        if (googleUser == null) return false;
-        final googleAuth = await googleUser.authentication;
+        final googleUser = await _googleSignIn.authenticate();
+        final googleAuth = googleUser.authentication;
         final credential = GoogleAuthProvider.credential(
-          accessToken: googleAuth.accessToken,
           idToken: googleAuth.idToken,
         );
         await fbUser.reauthenticateWithCredential(credential);

@@ -8,13 +8,12 @@ import '../widgets/app_image.dart';
 import 'saved_addresses_page.dart';
 import 'favourites_page.dart';
 import 'payment_methods_page.dart';
-import 'rewards_page.dart';
 import 'help_page.dart';
 import 'account_settings_page.dart';
 
 // ── Profile sub-page enum ─────────────────────────────────────────────────────
 
-enum _SubPage { addresses, payment, rewards, favourites, help, settings }
+enum _SubPage { addresses, payment, favourites, help, settings }
 
 // ── Profile page ──────────────────────────────────────────────────────────────
 
@@ -46,8 +45,6 @@ class _ProfilePageState extends State<ProfilePage> {
         return SavedAddressesPage(onBack: back);
       case _SubPage.payment:
         return PaymentMethodsPage(onBack: back);
-      case _SubPage.rewards:
-        return RewardsPage(onBack: back);
       case _SubPage.favourites:
         return FavouritesPage(onBack: back, onViewItem: (id) {
           setState(() => _subPage = null);
@@ -69,7 +66,6 @@ class _ProfilePageState extends State<ProfilePage> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           _buildHero(),
-          _buildStats(),
           _buildMenuSection(),
           const SizedBox(height: 20),
           _buildPreferencesSection(),
@@ -283,80 +279,8 @@ class _ProfilePageState extends State<ProfilePage> {
               ],
             ),
           ],
-          const SizedBox(height: 10),
-          GestureDetector(
-            onTap: () => setState(() => _subPage = _SubPage.rewards),
-            child: Container(
-              padding: const EdgeInsets.symmetric(
-                  horizontal: 14, vertical: 5),
-              decoration: BoxDecoration(
-                color: kGold.withValues(alpha: 0.12),
-                border:
-                    Border.all(color: kGold.withValues(alpha: 0.25)),
-                borderRadius: BorderRadius.circular(100),
-              ),
-              child: const Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(Icons.emoji_events, size: 15, color: kGold),
-                  SizedBox(width: 6),
-                  Text('Gold Member · 1,240 pts',
-                      style: TextStyle(
-                          color: kGold,
-                          fontSize: 12,
-                          fontWeight: FontWeight.w700)),
-                ],
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
 
-  Widget _buildStats() {
-    final stats = [
-      {'value': '34', 'label': 'Orders', 'showStar': false},
-      {'value': '4.9', 'label': 'Rating', 'showStar': true},
-      {'value': '₱12,480', 'label': 'Spent', 'showStar': false},
-    ];
-    return Container(
-      margin: const EdgeInsets.fromLTRB(20, 0, 20, 20),
-      decoration:
-          BoxDecoration(color: kBorder, borderRadius: BorderRadius.circular(16)),
-      clipBehavior: Clip.hardEdge,
-      child: Row(
-        children: stats.map((s) {
-          final showStar = s['showStar'] as bool;
-          return Expanded(
-            child: Container(
-              padding: const EdgeInsets.symmetric(vertical: 14),
-              margin: const EdgeInsets.all(0.5),
-              color: kSurface,
-              child: Column(
-                children: [
-                  Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Text(s['value'] as String,
-                          style: kSerif.copyWith(
-                              color: kBrand,
-                              fontWeight: FontWeight.w900,
-                              fontSize: 18)),
-                      if (showStar) ...[
-                        const SizedBox(width: 2),
-                        const Icon(Icons.star, size: 15, color: kBrand),
-                      ],
-                    ],
-                  ),
-                  const SizedBox(height: 2),
-                  Text(s['label'] as String,
-                      style: const TextStyle(color: kMuted, fontSize: 11)),
-                ],
-              ),
-            ),
-          );
-        }).toList(),
+        ],
       ),
     );
   }
@@ -378,14 +302,8 @@ class _ProfilePageState extends State<ProfilePage> {
       {
         'icon': Icons.credit_card,
         'label': 'Payment methods',
-        'sub': 'Visa ••••4821',
+        'sub': 'Manage your cards & wallets',
         'page': _SubPage.payment,
-      },
-      {
-        'icon': Icons.card_giftcard,
-        'label': 'Rewards & points',
-        'sub': '1,240 pts · Gold member',
-        'page': _SubPage.rewards,
       },
       {
         'icon': Icons.favorite_border,

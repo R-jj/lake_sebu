@@ -42,7 +42,7 @@ class FavouritesPage extends StatelessWidget {
                   padding:
                       const EdgeInsets.fromLTRB(20, 16, 20, 28),
                   itemCount: saved.length,
-                  separatorBuilder: (_, __) =>
+                  separatorBuilder: (_, _) =>
                       const SizedBox(height: 12),
                   itemBuilder: (context, i) => _FavTile(
                     item: saved[i],

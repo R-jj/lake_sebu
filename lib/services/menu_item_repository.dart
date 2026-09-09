@@ -129,6 +129,7 @@ class MenuItemRepository {
     required bool isAvailable,
     String? img,
     String? heroImg,
+    List<Map<String, dynamic>>? extras,
   }) async {
     _uid;
 
@@ -141,6 +142,7 @@ class MenuItemRepository {
       isAvailable: isAvailable,
       img: img,
       heroImg: heroImg,
+      extras: extras,
     );
     data['createdAt'] = FieldValue.serverTimestamp();
     data['updatedAt'] = FieldValue.serverTimestamp();
@@ -171,6 +173,7 @@ class MenuItemRepository {
     required double price,
     required String category,
     required bool isAvailable,
+    List<Map<String, dynamic>>? extras,
   }) async {
     _uid;
     try {
@@ -180,6 +183,7 @@ class MenuItemRepository {
         'price': price,
         'category': category,
         'isAvailable': isAvailable,
+        'extras': extras ?? [],
         'updatedAt': FieldValue.serverTimestamp(),
       });
     } catch (e) {
@@ -259,6 +263,7 @@ class MenuItemRepository {
     required bool isAvailable,
     String? img,
     String? heroImg,
+    List<Map<String, dynamic>>? extras,
   }) =>
       {
         'restaurantId': restaurantId,
@@ -267,7 +272,9 @@ class MenuItemRepository {
         'price': price,
         'category': category.trim(),
         'isAvailable': isAvailable,
-        if (img != null) 'img': img,
-        if (heroImg != null) 'heroImg': heroImg,
+        'img': ?img,
+        'heroImg': ?heroImg,
+        // Always write the extras list so an empty list clears previous extras.
+        'extras': extras ?? [],
       };
 }

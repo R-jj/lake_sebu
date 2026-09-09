@@ -382,6 +382,47 @@ class MenuImageService {
     }
   }
 
+  // ── Restaurant banner ──────────────────────────────────────────────────────
+
+  /// Uploads a restaurant banner image and returns the public URL + object key.
+  ///
+  /// [rawBytes]      — raw bytes of the selected file (from image_picker).
+  /// [mimeType]      — MIME type reported by the picker.
+  /// [restaurantId]  — Firestore document ID for the restaurant.
+  ///
+  /// Stored at `restaurants/{restaurantId}/banner.webp` in R2.
+  /// Throws [MenuImageException] on any failure.
+  Future<ImageUploadResult> uploadRestaurantBanner({
+    required Uint8List rawBytes,
+    required String mimeType,
+    required String restaurantId,
+  }) async {
+    _validateFileType(mimeType);
+    _validateFileSize(rawBytes.length);
+
+    final processedBytes = await _processImage(rawBytes);
+    final idToken = await _getIdToken();
+
+    // Reuse the same presign endpoint; pass restaurantId as menuItemId and
+    // 'banner' as imageType — the Worker stores it at
+    // restaurants/{restaurantId}/banner.webp (ignoring menuItemId for banner).
+    final presignResult = await _presign(
+      idToken: idToken,
+      menuItemId: restaurantId,
+      imageType: 'banner',
+    );
+
+    await _putToR2(
+      uploadUrl: presignResult['uploadUrl'] as String,
+      bytes: processedBytes,
+    );
+
+    return ImageUploadResult(
+      publicUrl: presignResult['publicUrl'] as String,
+      objectKey: presignResult['objectKey'] as String,
+    );
+  }
+
   // ── Utility ────────────────────────────────────────────────────────────────
 
   Map<String, dynamic>? _tryDecodeJson(String body) {

@@ -236,7 +236,7 @@ class MenuImagePicker extends StatelessWidget {
         fit: BoxFit.cover,
         width: double.infinity,
         height: 180,
-        errorBuilder: (_, __, ___) => _emptyPlaceholder(),
+        errorBuilder: (_, _, _) => _emptyPlaceholder(),
       );
     }
 

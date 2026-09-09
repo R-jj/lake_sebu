@@ -36,10 +36,7 @@ class PaymentMethodsPage extends StatefulWidget {
 }
 
 class _PaymentMethodsPageState extends State<PaymentMethodsPage> {
-  List<_CardData> _cards = const [
-    _CardData(id: 1, brand: 'Visa', last4: '4821', expiry: '08/27', isDefault: true),
-    _CardData(id: 2, brand: 'Mastercard', last4: '3390', expiry: '11/26'),
-  ];
+  List<_CardData> _cards = const [];
 
   bool _showForm = false;
   final _numCtrl = TextEditingController();

@@ -20,6 +20,7 @@ class _SearchPageState extends State<SearchPage> {
   final ScrollController _scrollCtrl = ScrollController();
 
   String _query = '';
+  String _activeCategory = ''; // '' means no filter
 
   /// How many items are currently visible in the active list
   /// (trending when query is empty, results when query is set).
@@ -49,7 +50,7 @@ class _SearchPageState extends State<SearchPage> {
 
   void _loadMore() {
     final provider = context.read<MenuProvider>();
-    final total = _query.trim().isEmpty
+    final total = _query.trim().isEmpty && _activeCategory.isEmpty
         ? provider.allItems.length
         : _buildResults(provider.allItems, _query.trim()).length;
     if (_visibleCount < total) {
@@ -64,21 +65,37 @@ class _SearchPageState extends State<SearchPage> {
       _controller.text = value;
       _controller.selection =
           TextSelection.collapsed(offset: value.length);
-      _visibleCount = _kPageSize; // reset page on every query change
+      _visibleCount = _kPageSize;
+    });
+  }
+
+  void _toggleCategory(String label) {
+    setState(() {
+      _activeCategory = _activeCategory == label ? '' : label;
+      _visibleCount = _kPageSize;
     });
   }
 
   List<Map<String, dynamic>> _buildResults(
       List<Map<String, dynamic>> all, String trimmed) {
-    final q = trimmed.toLowerCase();
     return all.where((item) {
-      final name = (item['name'] as String? ?? '').toLowerCase();
-      final restaurant =
-          (item['restaurantName'] as String? ?? '').toLowerCase();
-      final category = (item['category'] as String? ?? '').toLowerCase();
-      return name.contains(q) ||
-          restaurant.contains(q) ||
-          category.contains(q);
+      // Category filter
+      if (_activeCategory.isNotEmpty) {
+        final cat = item['category'] as String? ?? '';
+        if (cat != _activeCategory) return false;
+      }
+      // Text search filter
+      if (trimmed.isNotEmpty) {
+        final q = trimmed.toLowerCase();
+        final name = (item['name'] as String? ?? '').toLowerCase();
+        final restaurant =
+            (item['restaurantName'] as String? ?? '').toLowerCase();
+        final category = (item['category'] as String? ?? '').toLowerCase();
+        return name.contains(q) ||
+            restaurant.contains(q) ||
+            category.contains(q);
+      }
+      return true;
     }).toList();
   }
 
@@ -93,6 +110,14 @@ class _SearchPageState extends State<SearchPage> {
     if (menuProvider.isLoading) {
       return const Center(child: CircularProgressIndicator());
     }
+
+    // Build category tags from live data
+    final cats = allItems
+        .map((item) => item['category'] as String? ?? '')
+        .where((c) => c.isNotEmpty)
+        .toSet()
+        .toList()
+      ..sort();
 
     final header = Padding(
       padding: const EdgeInsets.fromLTRB(20, 16, 20, 0),
@@ -143,12 +168,68 @@ class _SearchPageState extends State<SearchPage> {
               ],
             ),
           ),
+          const SizedBox(height: 16),
+          // ── Category tag chips ─────────────────────────────────────────
+          if (cats.isNotEmpty) ...[
+            const Text('CATEGORIES',
+                style: TextStyle(
+                    color: kMuted,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w700,
+                    letterSpacing: 1)),
+            const SizedBox(height: 10),
+            SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              physics: const BouncingScrollPhysics(),
+              child: Row(
+                children: cats.map((label) {
+                  final isActive = _activeCategory == label;
+                  final icon = kCategoryIcons[label] ?? Icons.restaurant;
+                  return Padding(
+                    padding: const EdgeInsets.only(right: 8),
+                    child: GestureDetector(
+                      onTap: () => _toggleCategory(label),
+                      child: AnimatedContainer(
+                        duration: const Duration(milliseconds: 150),
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 14, vertical: 8),
+                        decoration: BoxDecoration(
+                          color: isActive ? kBrand : kSurface,
+                          border: Border.all(
+                              color: isActive ? kBrand : kBorder),
+                          borderRadius: BorderRadius.circular(100),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(icon,
+                                size: 15,
+                                color: isActive ? Colors.white : kInk),
+                            const SizedBox(width: 6),
+                            Text(label,
+                                style: TextStyle(
+                                    color:
+                                        isActive ? Colors.white : kInk,
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.w600)),
+                          ],
+                        ),
+                      ),
+                    ),
+                  );
+                }).toList(),
+              ),
+            ),
+            const SizedBox(height: 16),
+          ],
         ],
       ),
     );
 
-    // ── No query: trending list ──────────────────────────────────────────────
-    if (trimmed.isEmpty) {
+    final hasFilter = trimmed.isNotEmpty || _activeCategory.isNotEmpty;
+
+    // ── No filter: trending list ─────────────────────────────────────────────
+    if (!hasFilter) {
       final visible = allItems.take(_visibleCount).toList();
       final hasMore = _visibleCount < allItems.length;
 
@@ -161,96 +242,36 @@ class _SearchPageState extends State<SearchPage> {
               physics: const BouncingScrollPhysics(),
               itemCount: _trendingHeaderCount + visible.length + (hasMore ? 1 : 0),
               itemBuilder: (context, i) {
-                // ── Static header section ────────────────────────────────
                 if (i == 0) {
-                  return Padding(
-                    padding: const EdgeInsets.fromLTRB(20, 20, 20, 0),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
+                  return const Padding(
+                    padding: EdgeInsets.fromLTRB(20, 0, 20, 14),
+                    child: Row(
                       children: [
-                        const Text('POPULAR SEARCHES',
+                        Text('TRENDING NOW',
                             style: TextStyle(
                                 color: kMuted,
                                 fontSize: 12,
                                 fontWeight: FontWeight.w700,
                                 letterSpacing: 1)),
-                        const SizedBox(height: 14),
-                        Wrap(
-                          spacing: 10,
-                          runSpacing: 10,
-                          children: (() {
-                            final cats = menuProvider.allItems
-                                .map((item) => item['category'] as String? ?? '')
-                                .where((c) => c.isNotEmpty)
-                                .toSet()
-                                .toList()
-                              ..sort();
-                            return cats.map((label) {
-                              final icon =
-                                  kCategoryIcons[label] ?? Icons.restaurant;
-                              return GestureDetector(
-                                onTap: () => _setQuery(label),
-                                child: Container(
-                                  padding: const EdgeInsets.symmetric(
-                                      horizontal: 16, vertical: 8),
-                                  decoration: BoxDecoration(
-                                    color: kSurface,
-                                    border: Border.all(color: kBorder),
-                                    borderRadius: BorderRadius.circular(100),
-                                  ),
-                                  child: Row(
-                                    mainAxisSize: MainAxisSize.min,
-                                    children: [
-                                      Icon(icon, size: 16, color: kInk),
-                                      const SizedBox(width: 6),
-                                      Text(label,
-                                          style: const TextStyle(
-                                              color: kInk,
-                                              fontSize: 13,
-                                              fontWeight: FontWeight.w600)),
-                                    ],
-                                  ),
-                                ),
-                              );
-                            }).toList();
-                          })(),
-                        ),
-                        const SizedBox(height: 24),
-                        const Row(
-                          children: [
-                            Text('TRENDING NOW',
-                                style: TextStyle(
-                                    color: kMuted,
-                                    fontSize: 12,
-                                    fontWeight: FontWeight.w700,
-                                    letterSpacing: 1)),
-                            SizedBox(width: 6),
-                            Icon(Icons.local_fire_department,
-                                size: 14, color: kGold),
-                          ],
-                        ),
-                        const SizedBox(height: 14),
+                        SizedBox(width: 6),
+                        Icon(Icons.local_fire_department,
+                            size: 14, color: kGold),
                       ],
                     ),
                   );
                 }
-
-                // ── Spinner footer ───────────────────────────────────────
                 if (hasMore && i == _trendingHeaderCount + visible.length) {
                   return const Padding(
                     padding: EdgeInsets.symmetric(vertical: 20),
                     child: Center(child: CircularProgressIndicator()),
                   );
                 }
-
-                // ── Item rows ────────────────────────────────────────────
                 final item = visible[i - _trendingHeaderCount];
                 return Padding(
                   padding: const EdgeInsets.fromLTRB(20, 0, 20, 12),
                   child: _ResultRow(
                       item: item,
-                      onTap: () =>
-                          widget.onViewItem('${item['id']}')),
+                      onTap: () => widget.onViewItem('${item['id']}')),
                 );
               },
             ),
@@ -259,7 +280,7 @@ class _SearchPageState extends State<SearchPage> {
       );
     }
 
-    // ── Results: no matches ──────────────────────────────────────────────────
+    // ── Filtered results ─────────────────────────────────────────────────────
     final results = _buildResults(allItems, trimmed);
 
     if (results.isEmpty) {
@@ -283,16 +304,17 @@ class _SearchPageState extends State<SearchPage> {
                     const SizedBox(height: 6),
                     const Text(
                         'Try a different dish or restaurant name',
-                        style:
-                            TextStyle(color: kMuted, fontSize: 13)),
-                    const SizedBox(height: 16),
-                    Text('No results for "$trimmed"',
-                        style: const TextStyle(
-                            color: kMuted,
-                            fontSize: 12,
-                            fontWeight: FontWeight.w700,
-                            letterSpacing: 1),
-                        textAlign: TextAlign.center),
+                        style: TextStyle(color: kMuted, fontSize: 13)),
+                    if (trimmed.isNotEmpty) ...[
+                      const SizedBox(height: 16),
+                      Text('No results for "$trimmed"',
+                          style: const TextStyle(
+                              color: kMuted,
+                              fontSize: 12,
+                              fontWeight: FontWeight.w700,
+                              letterSpacing: 1),
+                          textAlign: TextAlign.center),
+                    ],
                   ],
                 ),
               ),
@@ -302,9 +324,14 @@ class _SearchPageState extends State<SearchPage> {
       );
     }
 
-    // ── Results: matches ─────────────────────────────────────────────────────
     final visible = results.take(_visibleCount).toList();
     final hasMore = _visibleCount < results.length;
+
+    // Build result count label
+    final countLabel = [
+      if (_activeCategory.isNotEmpty) _activeCategory,
+      if (trimmed.isNotEmpty) '"$trimmed"',
+    ].join(' · ');
 
     return Column(
       children: [
@@ -315,12 +342,11 @@ class _SearchPageState extends State<SearchPage> {
             physics: const BouncingScrollPhysics(),
             itemCount: 1 + visible.length + (hasMore ? 1 : 0),
             itemBuilder: (context, i) {
-              // Count label header
               if (i == 0) {
                 return Padding(
-                  padding: const EdgeInsets.fromLTRB(20, 20, 20, 14),
+                  padding: const EdgeInsets.fromLTRB(20, 0, 20, 14),
                   child: Text(
-                    '${results.length} result${results.length != 1 ? 's' : ''} for "$trimmed"',
+                    '${results.length} result${results.length != 1 ? 's' : ''} · $countLabel',
                     style: const TextStyle(
                         color: kMuted,
                         fontSize: 12,
@@ -329,7 +355,6 @@ class _SearchPageState extends State<SearchPage> {
                   ),
                 );
               }
-              // Spinner footer
               if (hasMore && i == 1 + visible.length) {
                 return const Padding(
                   padding: EdgeInsets.symmetric(vertical: 20),
@@ -341,8 +366,7 @@ class _SearchPageState extends State<SearchPage> {
                 padding: const EdgeInsets.fromLTRB(20, 0, 20, 12),
                 child: _ResultRow(
                     item: item,
-                    onTap: () =>
-                        widget.onViewItem('${item['id']}')),
+                    onTap: () => widget.onViewItem('${item['id']}')),
               );
             },
           ),

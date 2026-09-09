@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../constants.dart';
 import '../widgets/shared_cards.dart';
+import '../widgets/floating_cart_bar.dart';
 import '../providers/menu_providers.dart';
 
 class HomePage extends StatefulWidget {
@@ -16,6 +17,8 @@ class HomePage extends StatefulWidget {
   final VoidCallback onSeeAllCategories;
   final VoidCallback onSeeAllDishes;
   final VoidCallback onSeeAllRestaurants;
+  /// When non-null, the home page will jump to this category filter.
+  final String? initialCategory;
 
   const HomePage({
     super.key,
@@ -30,6 +33,7 @@ class HomePage extends StatefulWidget {
     required this.onSeeAllDishes,
     required this.onSeeAllRestaurants,
     required this.onViewRestaurant,
+    this.initialCategory,
   });
 
   @override
@@ -38,6 +42,15 @@ class HomePage extends StatefulWidget {
 
 class _HomePageState extends State<HomePage> {
   String _activeCategory = 'All';
+
+  @override
+  void didUpdateWidget(HomePage oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.initialCategory != null &&
+        widget.initialCategory != oldWidget.initialCategory) {
+      setState(() => _activeCategory = widget.initialCategory!);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -136,17 +149,7 @@ class _HomePageState extends State<HomePage> {
                   Positioned(
                     top: -4,
                     right: -4,
-                    child: Container(
-                      width: 18,
-                      height: 18,
-                      decoration: const BoxDecoration(color: kBrand, shape: BoxShape.circle),
-                      child: Center(
-                        child: Text(
-                          '${widget.cartCount}',
-                          style: const TextStyle(color: Colors.white, fontSize: 9, fontWeight: FontWeight.w800),
-                        ),
-                      ),
-                    ),
+                    child: CartCountBadge(count: widget.cartCount),
                   ),
               ],
             ),
@@ -290,7 +293,7 @@ class _HomePageState extends State<HomePage> {
                   padding: const EdgeInsets.symmetric(horizontal: 20),
                   physics: const BouncingScrollPhysics(),
                   itemCount: categories.length,
-                  separatorBuilder: (_, __) => const SizedBox(width: 10),
+                  separatorBuilder: (_, _) => const SizedBox(width: 10),
                   itemBuilder: (context, i) {
                     final label = categories[i];
                     final isActive = _activeCategory == label;
@@ -361,7 +364,7 @@ class _HomePageState extends State<HomePage> {
                       padding: const EdgeInsets.symmetric(horizontal: 20),
                       physics: const BouncingScrollPhysics(),
                       itemCount: displayItems.length,
-                      separatorBuilder: (_, __) => const SizedBox(width: 14),
+                      separatorBuilder: (_, _) => const SizedBox(width: 14),
                       itemBuilder: (context, i) {
                         final dish = displayItems[i];
                         return GestureDetector(
@@ -403,7 +406,7 @@ class _HomePageState extends State<HomePage> {
             physics: const NeverScrollableScrollPhysics(),
             padding: const EdgeInsets.symmetric(horizontal: 20),
             itemCount: menuProvider.restaurants.length,
-            separatorBuilder: (_, __) => const SizedBox(height: 12),
+            separatorBuilder: (_, _) => const SizedBox(height: 12),
             itemBuilder: (context, i) {
               final restaurant = menuProvider.restaurants[i];
               return GestureDetector(

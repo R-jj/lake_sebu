@@ -1,3 +1,4 @@
 {
-    "cmake.sourceDirectory": "C:/Users/cabao/Documents/FlutterProjects/Apps/lake_sebu/windows"
+    "cmake.sourceDirectory": "C:/Users/cabao/Documents/FlutterProjects/Apps/lake_sebu/windows",
+    "CodeGPT.apiKey": "Anthropic"
 }

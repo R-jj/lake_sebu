@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'constants.dart';
 import 'models/address.dart';
@@ -52,6 +53,9 @@ class _RootShellState extends State<RootShell> {
   // ── See-all overlays ─────────────────────────────────────────────────────────
   // null | 'categories' | 'dishes' | 'restaurants'
   String? _seeAllPage;
+
+  // Category selected from AllCategoriesPage to apply on home screen.
+  String? _pendingCategory;
 
   // ── History stack ────────────────────────────────────────────────────────────
   // Each forward navigation pushes the *current* state here so the back
@@ -167,6 +171,7 @@ class _RootShellState extends State<RootShell> {
   // ── Cart helpers ─────────────────────────────────────────────────────────────
 
   void _addToCart(Map<String, dynamic> item, {double? price, int qty = 1}) {
+    HapticFeedback.mediumImpact();
     final basePrice = price ?? (item['price'] as num?)?.toDouble() ?? 0;
     final addQty = qty.clamp(1, 99);
     setState(() {
@@ -266,7 +271,13 @@ class _RootShellState extends State<RootShell> {
         body: SafeArea(
           child: AllCategoriesPage(
             onBack: _closeSeeAll,
-            onSelectCategory: (_) => _closeSeeAll(),
+            onSelectCategory: (category) {
+              setState(() {
+                _pendingCategory = category;
+                _seeAllPage = null;
+              });
+              _popHistory();
+            },
           ),
         ),
       );
@@ -368,7 +379,8 @@ class _RootShellState extends State<RootShell> {
               onSeeAllCategories: () => _openSeeAll('categories'),
               onSeeAllDishes: () => _openSeeAll('dishes'),
               onSeeAllRestaurants: () => _openSeeAll('restaurants'),
-              onViewRestaurant: _openRestaurant
+              onViewRestaurant: _openRestaurant,
+              initialCategory: _pendingCategory,
             ),
             SearchPage(onViewItem: _openItem),
             const OrdersPage(),

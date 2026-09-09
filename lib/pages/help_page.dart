@@ -31,10 +31,6 @@ class _HelpPageState extends State<HelpPage> {
       'q': 'How do I get a refund?',
       'a': 'Refunds are issued automatically for cancelled orders. For other issues, raise a ticket via Help & Support and expect resolution in 2–5 business days.',
     },
-    {
-      'q': 'How does the rewards program work?',
-      'a': 'You earn points on every order. Points can be redeemed in the Rewards section of your profile.',
-    },
   ];
 
   static const _contacts = [

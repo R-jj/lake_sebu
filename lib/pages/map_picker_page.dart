@@ -76,7 +76,7 @@ class _MapPickerPageState extends State<MapPickerPage> {
       _placemark = null; // never reuse a previous pin's placemark
     });
     try {
-      final placemarks = await placemarkFromCoordinates(
+      final placemarks = await Geocoding().placemarkFromCoordinates(
         pos.latitude,
         pos.longitude,
       );
@@ -87,11 +87,16 @@ class _MapPickerPageState extends State<MapPickerPage> {
           p.subLocality,
           p.locality,
           p.administrativeArea,
-        ].where((s) => s != null && s.isNotEmpty).join(', ');
+        ].nonNulls.where((s) => s.isNotEmpty).join(', ');
         setState(() {
           _resolvedAddress = parts.isEmpty ? 'Unknown location' : parts;
           _placemark = p;
         });
+        // Refresh the info window with the resolved address.
+        if (_controller.isCompleted) {
+          final mapCtrl = await _controller.future;
+          await mapCtrl.showMarkerInfoWindow(const MarkerId('picked'));
+        }
       }
     } catch (_) {
       if (mounted) setState(() => _resolvedAddress = 'Unable to fetch address');
@@ -103,6 +108,10 @@ class _MapPickerPageState extends State<MapPickerPage> {
   void _onMapTap(LatLng pos) {
     setState(() => _pickedLatLng = pos);
     _reverseGeocode(pos);
+    // Show the info window right away; it will refresh once geocoding finishes.
+    _controller.future.then(
+      (c) => c.showMarkerInfoWindow(const MarkerId('picked')),
+    );
   }
 
   Future<void> _goToMyLocation() async {
@@ -224,6 +233,12 @@ class _MapPickerPageState extends State<MapPickerPage> {
                       position: _pickedLatLng!,
                       icon: BitmapDescriptor.defaultMarkerWithHue(
                         BitmapDescriptor.hueOrange,
+                      ),
+                      infoWindow: InfoWindow(
+                        title: _isGeocoding ? 'Fetching address…' : (_resolvedAddress.isEmpty ? 'Pinned location' : _resolvedAddress),
+                        snippet:
+                            '${_pickedLatLng!.latitude.toStringAsFixed(6)}, '
+                            '${_pickedLatLng!.longitude.toStringAsFixed(6)}',
                       ),
                     ),
                   },

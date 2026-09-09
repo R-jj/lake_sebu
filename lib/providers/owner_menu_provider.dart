@@ -128,18 +128,17 @@ class OwnerMenuProvider extends ChangeNotifier {
     String? mainImageMimeType,
     Uint8List? heroImageBytes,
     String? heroImageMimeType,
+    List<Map<String, dynamic>>? extras,
   }) async {
     _assertInit();
     _setSaving(true);
 
     try {
-      // Reserve the Firestore ID first so R2 path uses it
       final itemId = _itemRepo.generateItemId();
 
       String? imgUrl;
       String? heroImgUrl;
 
-      // Upload main image
       if (mainImageBytes != null && mainImageMimeType != null) {
         final result = await _imageService.uploadMenuImage(
           rawBytes: mainImageBytes,
@@ -150,7 +149,6 @@ class OwnerMenuProvider extends ChangeNotifier {
         imgUrl = result.publicUrl;
       }
 
-      // Upload hero image
       if (heroImageBytes != null && heroImageMimeType != null) {
         final result = await _imageService.uploadMenuImage(
           rawBytes: heroImageBytes,
@@ -161,7 +159,6 @@ class OwnerMenuProvider extends ChangeNotifier {
         heroImgUrl = result.publicUrl;
       }
 
-      // Write Firestore document
       await _itemRepo.createMenuItemWithId(
         itemId: itemId,
         restaurantId: _restaurantId!,
@@ -172,6 +169,7 @@ class OwnerMenuProvider extends ChangeNotifier {
         isAvailable: isAvailable,
         img: imgUrl,
         heroImg: heroImgUrl,
+        extras: extras,
       );
 
       return itemId;
@@ -190,6 +188,7 @@ class OwnerMenuProvider extends ChangeNotifier {
     required double price,
     required String category,
     required bool isAvailable,
+    List<Map<String, dynamic>>? extras,
   }) async {
     _assertInit();
     _setSaving(true);
@@ -201,6 +200,7 @@ class OwnerMenuProvider extends ChangeNotifier {
         price: price,
         category: category,
         isAvailable: isAvailable,
+        extras: extras,
       );
     } finally {
       _setSaving(false);

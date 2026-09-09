@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
+import 'package:google_sign_in/google_sign_in.dart';
 import 'firebase_options.dart';
 import 'package:provider/provider.dart';
 import 'constants.dart';
@@ -14,12 +15,14 @@ import 'pages/sign_in_page.dart';
 import 'pages/profile_completion_gate.dart';
 import 'pages/owner/owner_root_shell.dart';
 import 'services/owner_notification_service.dart';
+import 'services/owner_messaging_service.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await Firebase.initializeApp(
     options: DefaultFirebaseOptions.currentPlatform,
   );
+  await GoogleSignIn.instance.initialize();
   await OwnerNotificationService.instance.init();
   runApp(
     MultiProvider(
@@ -79,12 +82,17 @@ void main() async {
             if (auth.isAuthenticated &&
                 auth.isRestaurantOwner &&
                 auth.restaurantId != null) {
+              // Register this device for killed-app push alarms.
+              OwnerMessagingService.instance.registerOwner();
               final rid = auth.restaurantId!;
               if (provider.initializedRestaurantId != rid) {
                 Future.microtask(() => provider.init(rid));
               }
             } else if (!auth.isAuthenticated) {
-              Future.microtask(() => provider.clear());
+              Future.microtask(() {
+                provider.clear();
+                OwnerMessagingService.instance.unregister();
+              });
             }
             return provider;
           },
@@ -105,7 +113,10 @@ void main() async {
                 Future.microtask(() => provider.init(rid));
               }
             } else if (!auth.isAuthenticated) {
-              Future.microtask(() => provider.clear());
+              Future.microtask(() {
+                provider.clear();
+                OwnerMessagingService.instance.unregister();
+              });
             }
             return provider;
           },

@@ -148,8 +148,8 @@ async function handlePresign(request: Request, env: Env): Promise<Response> {
   if (!menuItemId || typeof menuItemId !== 'string') {
     return corsError('menuItemId is required', 400);
   }
-  if (!imageType || (imageType !== 'main' && imageType !== 'hero')) {
-    return corsError('imageType must be "main" or "hero"', 400);
+  if (!imageType || (imageType !== 'main' && imageType !== 'hero' && imageType !== 'banner')) {
+    return corsError('imageType must be "main", "hero", or "banner"', 400);
   }
 
   // 3. Sanitise menuItemId — reject path traversal or suspicious chars
@@ -170,8 +170,15 @@ async function handlePresign(request: Request, env: Env): Promise<Response> {
   }
 
   // 5. Build the object key — always scoped to the authenticated owner's restaurant
-  const fileName = imageType === 'hero' ? 'hero.webp' : 'main.webp';
-  const objectKey = `restaurants/${restaurantId}/menu/${menuItemId}/${fileName}`;
+  let objectKey: string;
+  if (imageType === 'banner') {
+    // Restaurant banner: restaurants/{restaurantId}/banner.webp
+    // menuItemId is ignored for banner uploads (pass restaurantId or any value)
+    objectKey = `restaurants/${restaurantId}/banner.webp`;
+  } else {
+    const fileName = imageType === 'hero' ? 'hero.webp' : 'main.webp';
+    objectKey = `restaurants/${restaurantId}/menu/${menuItemId}/${fileName}`;
+  }
 
   // 6. Generate presigned PUT URL (15-minute expiry)
   const EXPIRY_SECONDS = 900;

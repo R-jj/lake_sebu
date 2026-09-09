@@ -108,7 +108,7 @@ class _AllRestaurantsPageState extends State<AllRestaurantsPage> {
                     padding: const EdgeInsets.fromLTRB(20, 0, 20, 28),
                     physics: const BouncingScrollPhysics(),
                     itemCount: items.length,
-                    separatorBuilder: (_, __) => const SizedBox(height: 14),
+                    separatorBuilder: (_, _) => const SizedBox(height: 14),
                     itemBuilder: (context, i) => _RestaurantCard(
                       data: items[i],
                       onTap: () => widget.onViewRestaurant('${items[i]['id']}'),
